@@ -5,4 +5,6 @@ PitchDetect: pitch detection tools given to us in class
 
 System requirements: Kivy, Fluidsynth
 
+Saroja is learning Git.
+
 
