@@ -21,7 +21,12 @@ from common.writer import *
 from common.mixer import *
 from common.gfxutil import *
 from common.wavegen import *
+from common.synth import *
+from common.clock import *
+from common.metro import *
+from common.noteseq import *
 from buffers import *
+from math import *
 
 from kivy.graphics.instructions import InstructionGroup
 from kivy.graphics import Color, Ellipse, Rectangle, Line
@@ -29,6 +34,7 @@ from kivy.graphics import PushMatrix, PopMatrix, Translate, Scale, Rotate
 
 from random import randint
 import aubio
+import bisect
 
 NUM_CHANNELS = 2
 
@@ -233,7 +239,6 @@ class OnsetDisplay(InstructionGroup):
         self.add(PopMatrix())
 
     def set_type(self, t):
-        print t
         if t == 'kick':
             self.anim = KFAnim((0, 1,1,1,1, self.start_sz), (0.5, 1,0,0,1, 0))
         else:
@@ -284,6 +289,7 @@ class GraphDisplay(InstructionGroup):
         self.line.points = self.points
 
 
+rhythm_prob = [2.5, 2.5, 2.5, 3.7, 4.5, 4.5, 7.7, 7.7, 8.3, 9.5, 9.5, 9.5]
 
 class MainWidget1(BaseWidget) :
     def __init__(self):
@@ -302,6 +308,27 @@ class MainWidget1(BaseWidget) :
         self.channel_select = 0
         self.input_buffers = []
         self.live_wave = None
+
+        # separate audio channel for the metronome 
+        self.metro_audio = Audio(NUM_CHANNELS)
+        self.synth = Synth('../data/FluidR3_GM.sf2', Audio.sample_rate)
+
+        # create TempoMap, AudioScheduler
+        self.tempo = 50
+        self.tempo_map  = SimpleTempoMap(self.tempo)
+        self.sched = AudioScheduler(self.tempo_map)
+
+        # connect scheduler into audio system
+        self.metro_audio.set_generator(self.sched)
+        self.sched.set_generator(self.synth)
+
+        # create the metronome:
+        self.metro = Metronome(self.sched, self.synth)
+        self.last_tick = 0
+        
+        # used for rhythm playback
+        self.song = []
+        self.seq = NoteSequencer(self.sched, self.synth, 3, (128, 0), self.song)
 
         self.info = topleft_label()
         self.add_widget(self.info)
@@ -326,6 +353,7 @@ class MainWidget1(BaseWidget) :
 
     def on_update(self) :
         self.audio.on_update()
+        self.metro_audio.on_update()
         self.anim_group.on_update()
 
         self.info.text = 'fps:%d\n' % kivyClock.get_fps()
@@ -400,6 +428,22 @@ class MainWidget1(BaseWidget) :
 
         if keycode[1] == 'c' and NUM_CHANNELS == 2:
             self.channel_select = 1 - self.channel_select
+
+        # turn metronome on/off
+        if keycode[1] == '1':
+            self.metro.toggle()
+
+        # turn sequencer on/off
+        if keycode[1] == '2':
+            self.seq.toggle()
+
+        if keycode[1] == 'x':
+            x = (self.sched.get_tick() - self.last_tick)/float(kTicksPerQuarter)*12
+            beats = int(x)/12
+            offset = bisect.bisect_left(rhythm_prob, x - 12*beats)
+            dur = beats*12 + offset
+            self.song.append((dur*kTicksPerQuarter/12, 60))
+            self.last_tick += dur*kTicksPerQuarter/12
 
         # adjust mixer gain
         gf = lookup(keycode[1], ('up', 'down'), (1.1, 1/1.1))

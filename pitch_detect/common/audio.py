@@ -93,7 +93,6 @@ class Audio(object):
         a = 0.9
         self.cpu_time = a * self.cpu_time + (1-a) * dt
 
-
     # return parameter values for output device idx, input device idx, and
     # buffer size
     def _get_parameters(self):
