@@ -11,7 +11,6 @@
 # contains example code for some simple input (microphone) processing.
 # Requires aubio (pip install aubio).
 
-
 import sys
 sys.path.append('..')
 
@@ -35,6 +34,7 @@ from kivy.graphics import PushMatrix, PopMatrix, Translate, Scale, Rotate
 from random import randint
 import aubio
 import bisect
+import numpy as np
 
 NUM_CHANNELS = 2
 
@@ -54,7 +54,7 @@ class PitchDetector(object):
 
         self.cur_pitch = 0
 
-    # Add incoming data to pitch detector. Return estimated pitch as floating point 
+    # Add incoming data to pitch detector. Return estimated pitch as floating point
     # midi value.
     # Returns 0 if a strong pitch is not found.
     def write(self, signal):
@@ -96,9 +96,9 @@ class WaveArray(object):
         return self.num_channels
 
 
-# this class is a generator. It does no actual buffering across more than one call. 
-# So underruns/overruns are likely, resulting in pops here and there. 
-# But code is simpler to deal with and it reduces latency. 
+# this class is a generator. It does no actual buffering across more than one call.
+# So underruns/overruns are likely, resulting in pops here and there.
+# But code is simpler to deal with and it reduces latency.
 # Otherwise, it would need a FIFO read-write buffer
 class IOBuffer(object):
     def __init__(self):
@@ -136,7 +136,7 @@ class IOBuffer(object):
         return tmp, True
 
 
-# looks at incoming audio data, detects onsets, and then a little later, classifies the onset as 
+# looks at incoming audio data, detects onsets, and then a little later, classifies the onset as
 # "kick" or "snare"
 # calls callback function with message argument that is one of "onset", "kick", "snare"
 class OnsetDectior(object):
@@ -193,7 +193,7 @@ class OnsetDectior(object):
 class MeterDisplay(InstructionGroup):
     def __init__(self, pos, height, in_range, color):
         super(MeterDisplay, self).__init__()
-        
+
         self.max_height = height
         self.range = in_range
 
@@ -234,7 +234,7 @@ class OnsetDisplay(InstructionGroup):
 
         self.add(PushMatrix())
         self.add(Translate(*pos))
-        self.add(self.color)        
+        self.add(self.color)
         self.add(self.circle)
         self.add(PopMatrix())
 
@@ -309,12 +309,12 @@ class MainWidget1(BaseWidget) :
         self.input_buffers = []
         self.live_wave = None
 
-        # separate audio channel for the metronome 
+        # separate audio channel for the metronome
         self.metro_audio = Audio(NUM_CHANNELS)
         self.synth = Synth('../data/FluidR3_GM.sf2', Audio.sample_rate)
 
         # create TempoMap, AudioScheduler
-        self.tempo = 50
+        self.tempo = 120
         self.tempo_map  = SimpleTempoMap(self.tempo)
         self.sched = AudioScheduler(self.tempo_map)
 
@@ -325,10 +325,10 @@ class MainWidget1(BaseWidget) :
         # create the metronome:
         self.metro = Metronome(self.sched, self.synth)
         self.last_tick = 0
-        
+
         # used for rhythm playback
         self.song = []
-        self.seq = NoteSequencer(self.sched, self.synth, 3, (128, 0), self.song)
+        self.seq = NoteSequencer(self.sched, self.synth, 1, (0, 0), self.song)
 
         self.info = topleft_label()
         self.add_widget(self.info)
@@ -350,6 +350,7 @@ class MainWidget1(BaseWidget) :
 
         self.onset_disp = None
         self.cur_pitch = 0
+        self.pitch_array = []
 
     def on_update(self) :
         self.audio.on_update()
@@ -365,6 +366,13 @@ class MainWidget1(BaseWidget) :
         self.info.text += "r: toggle recording: %s\n" % ("OFF", "ON")[self.recording]
         self.info.text += "m: monitor: %s\n" % ("OFF", "ON")[self.monitor]
         self.info.text += "p: playback memory buffer"
+        self.last_time_hit = 0
+        self.first = False
+    def get_pitch_array(self):
+        return self.pitch_array
+
+    def clear_pitch_array(self):
+        self.pitch_array = []
 
     def receive_audio(self, frames, num_channels) :
         # handle 1 or 2 channel input.
@@ -379,12 +387,13 @@ class MainWidget1(BaseWidget) :
         # display on meter and graph
         rms = np.sqrt(np.mean(mono ** 2))
         rms = np.clip(rms, 1e-10, 1) # don't want log(0)
-        db = 20 * np.log10(rms)      # convert from amplitude to decibels 
+        db = 20 * np.log10(rms)      # convert from amplitude to decibels
         self.mic_meter.set(db)
         self.mic_graph.add_point(db)
 
         # pitch detection: get pitch and display on meter and graph
         self.cur_pitch = self.pitch.write(mono)
+        self.pitch_array.append(self.cur_pitch)
         self.pitch_meter.set(self.cur_pitch)
         self.pitch_graph.add_point(self.cur_pitch)
 
@@ -416,6 +425,13 @@ class MainWidget1(BaseWidget) :
             if self.recording:
                 self._process_input()
             self.recording = not self.recording
+            if not self.recording:
+                print self.song
+
+        if keycode[1] == "f":
+            if not self.recording and len(self.song) > 0:
+                self.seq = NoteSequencer(self.sched, self.synth, 3, (0, 0), self.song, loop = False)
+                self.seq.toggle()
 
         # toggle monitoring
         if keycode[1] == 'm':
@@ -429,7 +445,7 @@ class MainWidget1(BaseWidget) :
         if keycode[1] == 'c' and NUM_CHANNELS == 2:
             self.channel_select = 1 - self.channel_select
 
-        # turn metronome on/off
+        # turn metronome on/
         if keycode[1] == '1':
             self.metro.toggle()
 
@@ -438,18 +454,39 @@ class MainWidget1(BaseWidget) :
             self.seq.toggle()
 
         if keycode[1] == 'x':
-            x = (self.sched.get_tick() - self.last_tick)/float(kTicksPerQuarter)*12
-            beats = int(x)/12
-            offset = bisect.bisect_left(rhythm_prob, x - 12*beats)
-            dur = beats*12 + offset
-            self.song.append((dur*kTicksPerQuarter/12, 60))
-            self.last_tick += dur*kTicksPerQuarter/12
+            # clear pitch array
+            if self.last_tick == 0:
+                self.last_tick = self.sched.get_tick()
+                self.first = True
+            else:
+                self.clear_pitch_array()
+                x = (self.sched.get_tick() - self.last_tick)/float(kTicksPerQuarter)*12
+                beats = int(x)/12
+                offset = bisect.bisect_left(rhythm_prob, x - 12*beats)
+                dur = beats*12 + offset
+                self.song.append((dur*kTicksPerQuarter/12, 60))
+                # here need to detect the pitch as well and average it
+                self.last_tick += dur*kTicksPerQuarter/12
 
         # adjust mixer gain
         gf = lookup(keycode[1], ('up', 'down'), (1.1, 1/1.1))
         if gf:
             new_gain = self.mixer.get_gain() * gf
             self.mixer.set_gain( new_gain )
+
+    def on_key_up(self, keycode):
+        if keycode[1] == "x":
+            # make the last thing in self.song the last pitch
+            if not self.first:
+                print "detecting"
+                arr = self.get_pitch_array()
+                arr = np.array(arr)
+                arr = [a for a in arr if a > 40 and a < 77]
+                if len (arr) > 0 and len(self.song) > 0:
+                    avg = np.percentile(arr, 50)
+                    print avg
+                    print arr
+                    self.song[len(self.song) - 1] = (self.song[len(self.song) - 1] [0], int(round(avg)))
 
     def _process_input(self) :
         data = combine_buffers(self.input_buffers)
