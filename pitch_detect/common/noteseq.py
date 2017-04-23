@@ -13,13 +13,14 @@ from common.clock import kTicksPerQuarter, quantize_tick_up
 class NoteSequencer(object):
     """Plays a single Sequence of notes. The sequence is a python list containing
     notes. Each note is (dur, pitch)."""
-    def __init__(self, sched, synth, channel, patch, notes, loop=True):
+    def __init__(self, sched, synth, channel, patch, notes, loop=True, note_cb=None):
         super(NoteSequencer, self).__init__()
         self.sched = sched
         self.synth = synth
         self.channel = channel
         self.patch = patch
 
+        self.note_cb = note_cb
         self.notes = notes
         self.loop = loop
         self.on_cmd = None
@@ -70,6 +71,8 @@ class NoteSequencer(object):
 
             # schedule the next note:
             self.on_cmd = self.sched.post_at_tick(tick+dur, self._note_on, idx+1)
+            if self.note_cb:
+                self.note_cb(idx)
 
 
     def _note_off(self):

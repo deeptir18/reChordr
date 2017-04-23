@@ -300,3 +300,7 @@ class Command(object):
 def quantize_tick_up(tick, grid) :
     return tick - (tick % grid) + grid
 
+# helper function for quantization:
+def quantize_tick_down(tick, grid) :
+    return tick - (tick % grid)
+
