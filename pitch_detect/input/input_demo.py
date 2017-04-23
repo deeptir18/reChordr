@@ -132,6 +132,83 @@ class PitchSnap(object):
         self.pitches.append(pitch)
 
 
+maj_scale = {0: 2, 2: 1, 4: 1, 5: 1, 7: 1, 9: 1, 11: 1}
+harm_min_scale = {0: 2, 2: 1, 3: 1, 5: 1, 7: 1, 9: 1, 10: 1}
+# accepts song as an array of tuples (duration, pitch)
+# key is (semitones above C, is major)
+class HarmonyCreator(object):
+    def __init__(self, song, key=None):
+        super(HarmonyCreator, self).__init__()
+        self.song = song
+        if key:
+            self.key = key
+        else:
+            self.key = self.detect_key()
+
+    def detect_key(self):
+        major = []
+        minor = []
+        for i in range(12):
+            maj_key = 0
+            min_key = 0
+            for note in self.song:
+                if note[1] > 0:
+                    pitch_class = (note[1] - i) % 12
+                    if pitch_class in maj_scale.keys():
+                        maj_key += maj_scale[pitch_class]*note[0]/float(kTicksPerQuarter)
+                    if pitch_class in harm_min_scale.keys():
+                        min_key += harm_min_scale[pitch_class]*note[0]/float(kTicksPerQuarter)
+
+            major.append(maj_key)
+            minor.append(min_key)
+        if max(major) >= max(minor):
+            return (major.index(max(major)), True)
+        else:
+            return (minor.index(max(minor)), False)
+
+    # measure_length given in ticks
+    def get_measures(self, measure_length):
+        measures = []
+        current_measure = []
+        # measured in ticks
+        current_length = 0
+        for note in self.song:
+            if current_length + note[0] <= measure_length:
+                current_measure.append(note)
+                current_length += note[0]
+            elif current_length == measure_length:
+                measures.append(current_measure)
+                current_measure = [note]
+                current_length = 0
+            else:
+                dur = measure_length - current_length
+                current_measure.append((dur, note[1]))
+                measures.append(current_measure)
+                current_measure = [(note[0] - dur, note[1])]
+                current_length = note[0] - dur
+        if current_length > 0:
+            current_measure.append((measure_length - current_length, 0))
+            measures.append(current_measure)
+        return measures
+
+    def get_harmonies(self, measures):
+        pass
+
+
+
+
+# kSomewhere = ((960, 60), (960, 72), (480, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
+# AllMyLoving = ((480*2, 0), (480, 69), (240, 68), (480*2, 66), (240, 0), (240, 68), (480, 69), (480, 71), (720, 73))
+# x = HarmonyCreator(AllMyLoving)
+# print x.get_measures(480*4)
+
+
+
+
+
+
+
+
 class MainWidget1(BaseWidget) :
     def __init__(self):
         super(MainWidget1, self).__init__()
@@ -211,17 +288,10 @@ class MainWidget1(BaseWidget) :
             self.input_buffers.append(frames)
 
     def add_snips(self, idx):
+        # this is kind of hack-y so should eventually be fixed
         self.mixer.add(WaveGenerator(self.song_snips[idx+1]), loop=True)
 
     def on_key_down(self, keycode, modifiers):
-        # toggle recording
-        if keycode[1] == 'r':
-            if self.recording:
-                self._process_input()
-            self.recording = not self.recording
-            if not self.recording:
-                print self.song
-
         if keycode[1] == 'c' and NUM_CHANNELS == 2:
             self.channel_select = 1 - self.channel_select
 
