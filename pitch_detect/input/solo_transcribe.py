@@ -1,6 +1,6 @@
 #####################################################################
 #
-# input_demo.py
+# solo_transcribe.py
 #
 # Copyright (c) 2017, Eran Egozy
 #
@@ -197,9 +197,6 @@ class MainWidget1(BaseWidget) :
         self.info.text += "pitch: %.1f\n" % self.cur_pitch
 
         self.info.text += "c: analyzing channel:%d\n" % self.channel_select
-        self.info.text += "r: toggle recording: %s\n" % ("OFF", "ON")[self.recording]
-        self.info.text += "m: monitor: %s\n" % ("OFF", "ON")[self.monitor]
-        self.info.text += "p: playback memory buffer"
 
     def receive_audio(self, frames, num_channels) :
         # handle 1 or 2 channel input.

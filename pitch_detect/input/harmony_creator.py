@@ -96,10 +96,8 @@ class HarmonyCreator(object):
                 weight = 0
                 for note in m:
                     if note[1] > 0:
-                        print 'hello'
-                        pitch_class = note[1] - self.key[0]
+                        pitch_class = (note[1] - self.key[0]) % 12
                         if pitch_class in chord[1]:
-                            print 'hi'
                             weight += float(note[0])/float(kTicksPerQuarter)
                 chord_weights.append(weight)
             print chord_weights
@@ -110,9 +108,84 @@ class HarmonyCreator(object):
         return chords
 
 
+class PitchClass(object):
+    def __init__(self, semitones_from_C):
+        super(PitchClass)
+        self.pitch_class = semitones_from_C % 12
+
+    def contains(self, midi):
+        return (midi % 12 == self.pitch_class)
+
+    def to_string(self):
+        names = ['C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G', 'G#/Ab', 'A', 'A#/Bb', 'B']
+        return names[self.pitch_class]
+
+
+class Scale(object):
+    def __init__(self, key, is_major, is_harmonic=True):
+        super(Scale, self).__init__()
+        self.key = key
+        if is_major:
+            self.scale = [0, 2, 4, 5, 7, 9, 11]
+        elif is_harmonic:
+            self.scale = [0, 2, 3, 5, 7, 8, 11]
+        else:
+            self.scale = [0, 2, 3, 5, 7, 8, 10]
+
+    def contains(self, midi):
+        for x in self.scale:
+            if PitchClass(x + self.key.pitch_class).contains(midi):
+                return True
+        return False
+
+
+class Chord(object):
+    def __init__(self, scale, scale_degrees):
+        super(Chord, self).__init__()
+        self.scale = scale
+        self.scale_degrees = scale_degrees
+
+    def contains(self, midi, key):
+        for note in self.scale_degrees:
+            if PitchClass(note + self.scale.key.pitch_class).contains(midi):
+                return True
+        return False
+
+
+
+
+
+
+
+
+
+# parts is of the form [(lowest pitch, highest pitch), etc.]
+def get_all_part_options(parts, chord):
+    pass
+        
+
+
+def get_all_valid_notes(part, chord):
+    valid = []
+    for note in chord:
+        while note <= part[1]:
+            if note >= part[0]:
+                valid.append(note)
+            note += 12
+    valid.sort()
+    return valid
+
+
+
 
 kSomewhere = ((960, 60), (960, 72), (480, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
 AllMyLoving = ((480*2, 0), (480, 69), (240, 68), (480*2, 66), (240, 0), (240, 68), (480, 69), (480, 71), (720, 73))
 x = HarmonyCreator(AllMyLoving)
 print x.get_measures(480*4)
 print x.get_harmonies(x.get_measures(480*4))
+
+print get_all_valid_notes((60, 79), [0, 4, 7])
+
+
+
+
