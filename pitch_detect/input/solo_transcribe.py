@@ -244,7 +244,7 @@ class MainWidget1(BaseWidget) :
                 pitch_obj = Pitch(abs_pitch[0], abs_pitch[1], rel_pitch[0], rel_pitch[1])
                 pitch = pitch_obj.get_best_guess()
                 noteinfo = NoteInfo(pitch_obj, duration)
-                self.note_song.add_to_solo_voice(note_info)
+                self.note_song.add_to_solo_voice(noteinfo)
                 self.song.append((int(duration), int(pitch)))
 
 
