@@ -138,18 +138,35 @@ class Scale(object):
                 return True
         return False
 
+    def get_pitch_class(self, scale_degree):
+        return PitchClass(self.scale[scale_degree - 1] + self.key.pitch_class)
+
+    def get_scale_degree(self, midi):
+        for x in self.scale:
+            if PitchClass(x + self.key.pitch_class).contains(midi):
+                return self.scale.index(x) + 1
+        return -1
+
+
 
 class Chord(object):
-    def __init__(self, scale, scale_degrees):
+    def __init__(self, scale_degrees, is_major, is_harmonic=True):
         super(Chord, self).__init__()
-        self.scale = scale
         self.scale_degrees = scale_degrees
+        self.is_major = is_major
+        self.is_harmonic = is_harmonic
 
     def contains(self, midi, key):
-        for note in self.scale_degrees:
-            if PitchClass(note + self.scale.key.pitch_class).contains(midi):
-                return True
-        return False
+        scale = Scale(key, self.is_major, self.is_harmonic)
+        return (scale.get_scale_degree(midi) in self.scale_degrees)
+
+
+one_chord = Chord([1, 3, 5], True)
+four_chord = Chord([4, 6, 1], True)
+five_chord = Chord([5, 7, 2], True)
+six_chord = Chord([6, 1, 3], True)
+three_chord = Chord([3, 5, 7], True)
+
 
 
 
@@ -160,31 +177,31 @@ class Chord(object):
 
 
 # parts is of the form [(lowest pitch, highest pitch), etc.]
-def get_all_part_options(parts, chord):
-    pass
+# def get_all_part_options(parts, chord):
+#     pass
         
 
 
-def get_all_valid_notes(part, chord):
-    valid = []
-    for note in chord:
-        while note <= part[1]:
-            if note >= part[0]:
-                valid.append(note)
-            note += 12
-    valid.sort()
-    return valid
+# def get_all_valid_notes(part, chord):
+#     valid = []
+#     for note in chord:
+#         while note <= part[1]:
+#             if note >= part[0]:
+#                 valid.append(note)
+#             note += 12
+#     valid.sort()
+#     return valid
 
 
 
 
-kSomewhere = ((960, 60), (960, 72), (480, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
-AllMyLoving = ((480*2, 0), (480, 69), (240, 68), (480*2, 66), (240, 0), (240, 68), (480, 69), (480, 71), (720, 73))
-x = HarmonyCreator(AllMyLoving)
-print x.get_measures(480*4)
-print x.get_harmonies(x.get_measures(480*4))
+# kSomewhere = ((960, 60), (960, 72), (480, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
+# AllMyLoving = ((480*2, 0), (480, 69), (240, 68), (480*2, 66), (240, 0), (240, 68), (480, 69), (480, 71), (720, 73))
+# x = HarmonyCreator(AllMyLoving)
+# print x.get_measures(480*4)
+# print x.get_harmonies(x.get_measures(480*4))
 
-print get_all_valid_notes((60, 79), [0, 4, 7])
+# print get_all_valid_notes((60, 79), [0, 4, 7])
 
 
 
