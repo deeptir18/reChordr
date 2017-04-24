@@ -27,6 +27,7 @@ from common.noteseq import *
 from common.buffers import *
 from common.pitchdetect import *
 from math import *
+from noteclass import *
 
 from kivy.graphics.instructions import InstructionGroup
 from kivy.graphics import Color, Ellipse, Rectangle, Line
@@ -79,7 +80,7 @@ class RhythmDetector(object):
             self.durations.append(duration)
         print self.durations
 
-    # takes in a tick, and snaps the tick to a recognizable beat 
+    # takes in a tick, and snaps the tick to a recognizable beat
     # according to rhythm_profile
     def snap_note_to_grid(self, tick):
         print tick
@@ -155,7 +156,7 @@ class MainWidget1(BaseWidget) :
 
         # separate audio channel for the metronome
         self.metro_audio = Audio(NUM_CHANNELS)
-        self.synth = Synth('../data/FluidR3_GM.sf2', Audio.sample_rate)
+        self.synth = Synth('../../data/FluidR3_GM.sf2', Audio.sample_rate)
 
         self.tempo = 50
         self.rhythm_detector = RhythmDetector(self.tempo, rel_rhythm)
@@ -171,9 +172,11 @@ class MainWidget1(BaseWidget) :
         self.metro = Metronome(self.sched, self.synth)
 
         self.pitch_snap = PitchSnap()
-        
+
         # used for playback
         self.song = []
+        self.note_song = NoteSong(TimeSig(4,4), self.tempo)
+
         self.seq = NoteSequencer(self.sched, self.synth, 1, (0, 0), self.song, False, self.add_snips)
 
         self.info = topleft_label()
@@ -236,7 +239,12 @@ class MainWidget1(BaseWidget) :
             self.pitch_snap.snap_pitch()
             if len(self.rhythm_detector.durations) > 0:
                 duration = self.rhythm_detector.durations[-1]
-                pitch = self.pitch_snap.abs_pitches[-1][0]
+                abs_pitch = self.pitch_snap.abs_pitches[-1]
+                rel_pitch = self.pitch_snap.rel_pitches[-1]
+                pitch_obj = Pitch(abs_pitch[0], abs_pitch[1], rel_pitch[0], rel_pitch[1])
+                pitch = pitch_obj.get_best_guess()
+                noteinfo = NoteInfo(pitch_obj, duration)
+                self.note_song.add_to_solo_voice(note_info)
                 self.song.append((int(duration), int(pitch)))
 
 
