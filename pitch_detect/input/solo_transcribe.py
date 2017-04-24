@@ -80,6 +80,11 @@ class RhythmDetector(object):
             self.durations.append(duration)
         print self.durations
 
+    def set_tempo(self, tempo):
+        self.tempo = tempo
+        self.tempo_map = SimpleTempoMap(self.tempo)
+        self.sched = AudioScheduler(self.tempo_map)
+
     # takes in a tick, and snaps the tick to a recognizable beat
     # according to rhythm_profile
     def snap_note_to_grid(self, tick):
@@ -148,10 +153,9 @@ class MainWidget1(BaseWidget) :
         self.pitch = PitchDetector()
 
         self.recording = False
-        self.monitor = False
+        self.playback = False
         self.channel_select = 0
         self.input_buffers = []
-        self.live_wave = None
         self.song_snips = []
 
         # separate audio channel for the metronome
@@ -160,8 +164,7 @@ class MainWidget1(BaseWidget) :
 
         self.tempo = 50
         self.rhythm_detector = RhythmDetector(self.tempo, rel_rhythm)
-        # take TempoMap, AudioScheduler from RhythmDetector
-        self.tempo_map  = self.rhythm_detector.tempo_map
+        # take AudioScheduler from RhythmDetector
         self.sched = self.rhythm_detector.sched
 
         # connect scheduler into audio system
@@ -196,7 +199,11 @@ class MainWidget1(BaseWidget) :
         self.info.text += 'gain:%.2f\n' % self.mixer.get_gain()
         self.info.text += "pitch: %.1f\n" % self.cur_pitch
 
-        self.info.text += "c: analyzing channel:%d\n" % self.channel_select
+        self.info.text += "c: analyzing channel: %d\n" % self.channel_select
+        self.info.text += "p: play snippets on top: %d\n" % self.playback
+        self.info.text += "r: recording snippets: %d\n" % self.recording
+        self.info.text += "1: metronome at tempo: %d\n" % self.tempo
+        self.info.text += "2: play transcribed notes\n"
 
     def receive_audio(self, frames, num_channels) :
         # handle 1 or 2 channel input.
@@ -214,8 +221,8 @@ class MainWidget1(BaseWidget) :
             self.input_buffers.append(frames)
 
     def add_snips(self, idx):
-        # this is kind of hack-y so should eventually be fixed
-        self.mixer.add(WaveGenerator(self.song_snips[idx+1], loop=True))
+        if self.playback:
+            self.mixer.add(WaveGenerator(self.song_snips[idx+1]))
 
     def on_key_down(self, keycode, modifiers):
         if keycode[1] == 'c' and NUM_CHANNELS == 2:
@@ -229,9 +236,15 @@ class MainWidget1(BaseWidget) :
         if keycode[1] == '2':
             self.seq.toggle()
 
+        if keycode[1] == 'p':
+            self.playback = not self.playback
+
+        if keycode[1] == 'r':
+            self.recording = not self.recording
+
         if keycode[1] == 'x':
-            self.recording = True
-            self._process_input()
+            if self.recording:
+                self._process_input()
             self.rhythm_detector.add_note()
             self.pitch_snap.snap_pitch()
             if len(self.rhythm_detector.durations) > 0:
@@ -251,12 +264,19 @@ class MainWidget1(BaseWidget) :
             new_gain = self.mixer.get_gain() * gf
             self.mixer.set_gain( new_gain )
 
-        # adjust tempo gain
-        # TODO: this currently doesn't work
-        tempo_ctrl = lookup(keycode[1], ('left', 'right'), (-1, 1))
+        # adjust tempo
+        tempo_ctrl = lookup(keycode[1], ('left', 'right'), (-5, 5))
         if tempo_ctrl:
+            print self.tempo
             self.tempo += tempo_ctrl
-            self.rhythm_detector = RhythmDetector(self.tempo, self.rhythm_detector.rhythm_profile)
+            self.rhythm_detector.set_tempo(self.tempo)
+
+            self.sched = self.rhythm_detector.sched
+            # connect scheduler into audio system
+            self.metro_audio.set_generator(self.sched)
+            self.sched.set_generator(self.synth)
+
+            self.metro = Metronome(self.sched, self.synth)
 
     def _process_input(self) :
         data = combine_buffers(self.input_buffers)
