@@ -214,6 +214,12 @@ def is_acceptable_voicing(voice):
             return False
     return True
 
+def get_initial_voicing(chord, key):
+    # NOTE: here, for right now, just takes the first options
+    # We might want to come up with a smart way to get them
+    options = chord_voicing_options(chord, key)
+    return options[0]
+
 def chord_voicing_options(chord, key):
     # returns a list of possible chord voicings for this chord
     pitch_choices = {}
@@ -248,6 +254,23 @@ def chord_voicing_options(chord, key):
 
     return voicings
 
+def get_best_voicing(voicings, prev_voicing):
+    # given a previous voicing, generate the best possible voicing
+    distance_map= {}
+    for voicing in voicings:
+        dist = prev_voicing.distance(voicing)
+        if dist not in distance_map:
+            distance_map[dist] = [voicing]
+        else:
+            distance_map[dist].append(voicing)
+
+    distances = distance_map.keys()
+    distances.sort()
+    best_voicings = distance_map[distances[0]]
+    for voicing in best_voicings:
+        print voicing
+    ind = randint(0, len(best_voicings))
+    return best_voicings[ind]
 
 
 class ChordVoicing(object):
@@ -256,6 +279,10 @@ class ChordVoicing(object):
         self.alto = alto
         self.tenor = tenor
         self.bass = bass
+
+    def distance(self, other):
+        #### NOTE: the distance metric can change based on what metric we want to use for an optional way to change voices
+        return abs(other.soprano - self.soprano) + abs(other.alto - self.alto) + abs(other.tenor - self.tenor) + abs(other.bass - self.bass)
 
     def __str__(self):
         return "SOPRANO: {}, ALTO: {}, TENOR: {}, BASS: {}".format(self.soprano, self.alto, self.tenor, self.bass)
@@ -284,8 +311,7 @@ six_chord = Chord([6, 1, 3], True)
 three_chord = Chord([3, 5, 7], True)
 
 
-for option in chord_voicing_options(one_chord, 57): # A
-    print option
+get_best_voicing(chord_voicing_options(one_chord, 57), ChordVoicing(52, 45, 36, 23))
 
 
 
