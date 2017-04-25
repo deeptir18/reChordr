@@ -1,4 +1,5 @@
 import sys
+import itertools
 sys.path.append('..')
 
 from common.core import *
@@ -15,9 +16,6 @@ from common.buffers import *
 from common.pitchdetect import *
 from math import *
 
-from kivy.graphics.instructions import InstructionGroup
-from kivy.graphics import Color, Ellipse, Rectangle, Line
-from kivy.graphics import PushMatrix, PopMatrix, Translate, Scale, Rotate
 
 from random import randint
 import aubio
@@ -25,7 +23,12 @@ from bisect import bisect_left
 import numpy as np
 
 NUM_CHANNELS = 2
+soprano = 'SOPRANO'
+alto = 'ALTO'
+tenor = 'TENOR'
+bass = 'BASS'
 
+voice_map ={"SOPRANO": 0, "ALTO": 1, "TENOR": 2, "BASS": 3}
 
 maj_scale = {0: 2, 2: 1, 4: 1, 5: 1, 7: 1, 9: 1, 11: 1}
 harm_min_scale = {0: 2, 2: 1, 3: 1, 5: 1, 7: 1, 9: 1, 10: 1}
@@ -148,6 +151,115 @@ class Scale(object):
         return -1
 
 
+def get_pitches_in_range(voice, chord_pitches):
+    # got info from https://musescore.org/en/node/4581
+    # voice -> one of soprano, alto, tenor, base
+    # chord pitches -> a list of the pitches in the chord
+    if voice == soprano:
+        voice_range = [36, 60]
+    elif voice == alto:
+        voice_range = [29,53]
+    elif voice == tenor:
+        voice_range = [24, 48]
+    else:
+        voice_range = [15,51]
+    pitch_options = {}
+    for pitch in chord_pitches:
+        pitch_options[pitch] = get_note_in_range(pitch, voice_range)
+    return pitch_options
+
+
+def get_note_in_range(f, range):
+    # given a frequency f, find all the octaves of f that are in range [low, hi]
+    ret = []
+    if f < range[0]:
+        cur_freq = f
+        while cur_freq <= range[1]:
+            cur_freq += 12
+            if cur_freq >= range[0] and cur_freq <= range[1]:
+                ret.append(cur_freq)
+    elif f > range[1]:
+        cur_freq = f
+        while cur_freq >= range[0]:
+            cur_freq -= 12
+            if cur_freq >= range[0] and cur_freq <= range[1]:
+                ret.append(cur_freq)
+    else:
+        assert (f>=range[0] and f <=range[1])
+        ret.append(f)
+        cur_freq = f
+        while cur_freq >= range[0]:
+            cur_freq -= 12
+            if cur_freq >= range[0] and cur_freq <= range[1]:
+                ret.append(cur_freq)
+
+        cur_freq = f
+        while cur_freq <= range[1]:
+            cur_freq += 12
+            if cur_freq >= range[0] and cur_freq <= range[1]:
+                ret.append(cur_freq)
+
+    return ret
+
+def is_acceptable_voicing(voice):
+    # only voices adjacent to each other can cross\
+    if voice[0] <= voice[2] or voice[0] <= voice[3]:
+        return False
+
+    if voice[1] <= voice[3]:
+        return False
+
+    for i in range(3):
+        if voice[i] < voice[i+1] and (voice[i+1] - voice[i] >=2 ):
+            return False
+    return True
+
+def chord_voicing_options(chord, key):
+    # returns a list of possible chord voicings for this chord
+    pitch_choices = {}
+    chord_pitches = chord.get_chord_in_key(key)
+    for voice in [soprano, alto, tenor, bass]:
+        options = get_pitches_in_range(voice, chord_pitches)
+        pitch_choices[voice] = options
+
+    # what are all possible ways to assign this chord?
+    perms =  list(itertools.product(chord_pitches, repeat=4))
+    final_list = []
+    for perm in perms: # ways to assign root, third, fifth, to SATB
+        if chord_pitches[0] in perm and chord_pitches[1] in perm and chord_pitches[2] in perm:
+            # count if third was doubled => Don't allow this!
+            count = 0
+            for pitch in perm:
+                if pitch == chord_pitches[1]:
+                    count += 1
+            if count == 1:
+                final_list.append(perm)
+
+    voicings = []
+    for perm in final_list:
+        # figure out specific frequencies that go to each voice
+        add = []
+        for voice in [soprano, alto, tenor, bass]:
+            index = voice_map[voice]
+            add.append(pitch_choices[voice][perm[index]])
+        for possibility in list(itertools.product(*add)):
+            if is_acceptable_voicing(possibility):
+                voicings.append(ChordVoicing(*possibility))
+
+    return voicings
+
+
+
+class ChordVoicing(object):
+    def __init__(self, soprano, alto, tenor, bass):
+        self.soprano = soprano
+        self.alto = alto
+        self.tenor = tenor
+        self.bass = bass
+
+    def __str__(self):
+        return "SOPRANO: {}, ALTO: {}, TENOR: {}, BASS: {}".format(self.soprano, self.alto, self.tenor, self.bass)
+
 
 class Chord(object):
     def __init__(self, scale_degrees, is_major, is_harmonic=True):
@@ -161,12 +273,19 @@ class Chord(object):
         return (scale.get_scale_degree(midi) in self.scale_degrees)
 
 
+    def get_chord_in_key(self, key):
+        return [(key + deg - 1) for deg in self.scale_degrees] # in order of root, third, fifth, etc.
+
+
 one_chord = Chord([1, 3, 5], True)
 four_chord = Chord([4, 6, 1], True)
 five_chord = Chord([5, 7, 2], True)
 six_chord = Chord([6, 1, 3], True)
 three_chord = Chord([3, 5, 7], True)
 
+
+for option in chord_voicing_options(one_chord, 57): # A
+    print option
 
 
 
@@ -179,7 +298,7 @@ three_chord = Chord([3, 5, 7], True)
 # parts is of the form [(lowest pitch, highest pitch), etc.]
 # def get_all_part_options(parts, chord):
 #     pass
-        
+
 
 
 # def get_all_valid_notes(part, chord):
@@ -202,7 +321,3 @@ three_chord = Chord([3, 5, 7], True)
 # print x.get_harmonies(x.get_measures(480*4))
 
 # print get_all_valid_notes((60, 79), [0, 4, 7])
-
-
-
-
