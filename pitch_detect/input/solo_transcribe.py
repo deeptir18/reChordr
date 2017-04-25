@@ -234,6 +234,9 @@ class MainWidget1(BaseWidget) :
 
         # turn sequencer on/off
         if keycode[1] == '2':
+            print self.song
+            print self.seq.notes
+            self.seq.notes = self.song
             self.seq.toggle()
 
         if keycode[1] == 'p':
@@ -241,6 +244,8 @@ class MainWidget1(BaseWidget) :
 
         if keycode[1] == 'r':
             self.recording = not self.recording
+            if self.recording:
+                self.song = []
 
         if keycode[1] == 'x':
             if self.recording:
