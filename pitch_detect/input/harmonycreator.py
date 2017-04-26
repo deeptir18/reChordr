@@ -220,7 +220,8 @@ class ChordPredictor(object):
 
     def get_one_next_chord(self, idx, prev_chord=None):
         chords = self.get_all_next_chords(idx, prev_chord)
-        return chords[0]
+        rand_int = randint(0, len(chords) - 1)
+        return chords[rand_int]
 
     def get_one_option(self):
         chords = []
@@ -244,7 +245,7 @@ class VoicePredictor(object):
     def get_pitches_in_range(self, voice):
         # got info from https://musescore.org/en/node/4581
         # voice_part -> one of soprano, alto, tenor, base
-        
+
         if voice == soprano:
             voice_range = [36, 60]
         elif voice == alto:
@@ -352,25 +353,44 @@ class ChordVoicing(object):
     def __str__(self):
         return "SOPRANO: {}, ALTO: {}, TENOR: {}, BASS: {}".format(self.soprano, self.alto, self.tenor, self.bass)
 
-
-
-
-
-a_maj = Key(57, major)
-
-v = VoicePredictor(one_chord, a_maj, ChordVoicing(52, 45, 36, 23))
-print v.get_best_voicing()
-
-
 kSomewhere = ((960, 60), (960, 72), (480, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
 allMyLoving = ((480*2, 0), (480, 69), (240, 68), (480*2, 66), (240, 0), (240, 68), (480, 69), (480, 71), (720, 73))
 riversAndRoads = ((480, 0), (240, 55), (480, 60), (240, 62), (480, 64), (240, 67),
                   (480, 69), (240, 67), (360, 64), (120, 64), (240, 67),
                   (480, 69), (240, 69), (480, 67), (240, 60), (240, 64), (480*3+240, 0))
-c_maj = Key(60, major)
-x = ChordPredictor(riversAndRoads, 480*1.5, c_maj)
 
-chords = x.get_one_option()
-for chord in chords:
-    print chord
 
+def create_note_sequencers(voicings, length):
+    sop = ()
+    alt = ()
+    ten = ()
+    bas = ()
+
+    for voicing in voicings:
+        sop += ((length, voicing.soprano),)
+        alt += ((length, voicing.alto),)
+        ten += ((length, voicing.tenor),)
+        bas += ((length, voicing.bass),)
+
+    return {soprano: sop, alto: alt, tenor: ten, bass: bas}
+
+def kSomewhereExample():
+    c_maj = Key(60, major)
+    x = ChordPredictor(riversAndRoads, 480, c_maj)
+
+    chords = x.get_one_option()
+
+    voicings = []
+    for i in range(len(chords)):
+        chord = chords[i]
+        print chord
+        if i == 0:
+            v = VoicePredictor(chord, c_maj)
+            voicings.append(v.get_initial_voicing())
+        else:
+            v = VoicePredictor(chord, c_maj, voicings[i-1])
+            voicings.append(v.get_best_voicing())
+
+    dictionary = create_note_sequencers(voicings, 480)
+    dictionary["solo"] = riversAndRoads
+    return dictionary

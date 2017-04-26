@@ -12,6 +12,7 @@ from common.clock import *
 from common.metro import *
 from common.noteseq import *
 from notevisseq import *
+from input.harmonycreator import *
 from kivy.graphics.instructions import InstructionGroup
 from kivy.graphics import Color, Ellipse, Rectangle, Line
 from kivy.graphics import PushMatrix, PopMatrix, Translate, Scale, Rotate
@@ -100,11 +101,14 @@ diamonds_perc = [(quarter*32, 0), (quarter*0.75, 36), (quarter*0.75, 38), (quart
 (quarter*0.75, 36), (quarter*0.75, 38), (quarter, 36), (quarter*0.5, 36), (quarter*0.5, 38), (quarter*0.25, 42), (quarter*0.25, 42)]
 
 note_sequences = [diamonds_perc, diamonds_bass, diamonds_tenor, diamonds_alto, diamonds_mezzo, diamonds_soprano, diamonds_melody]
-
+somewhere = kSomewhereExample()
+lines = ["BASS", "TENOR", "ALTO", "SOPRANO", "solo"]
+note_sequences = [list(somewhere[key]) for key in lines]
 
 class MainWidget(BaseWidget) :
     def __init__(self):
         super(MainWidget, self).__init__()
+        print kSomewhereExample()
 
         self.info = Label(text = "text", valign='top', font_size='18sp',
               pos=(Window.width * 0.8, Window.height * 0.4),
@@ -112,7 +116,7 @@ class MainWidget(BaseWidget) :
         self.add_widget(self.info)
 
         self.audio = Audio(2)
-        self.synth = Synth('../data/FluidR3_GM.sf2')
+        self.synth = Synth('../../data/FluidR3_GM.sf2')
 
         # create TempoMap, AudioScheduler
         self.tempo_map  = SimpleTempoMap(100)
@@ -126,10 +130,11 @@ class MainWidget(BaseWidget) :
         self.metro = Metronome(self.sched, self.synth)
 
         self.colors = [(1, 1, 1), (0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0), (1, 0, 0)]
-        self.patches = [(128, 0), (0, 42), (0, 41), (0, 41), (0, 40), (0, 40), (0, 4)]
+        self.patches = [(0, 0), (0,0), (0, 0), (0,0), (0, 0), (0, 0), (0, 0)]
         self.parts = ["Percussion", "Bass", "Tenor", "Alto", "Mezzo", "Soprano", "Melody"]
-        self.num_channels = 7
+        self.num_channels = 5
         self.note_sequences = [NoteVisSequencer(self.sched, self.synth, channel = i+1, patch = self.patches[i], notes = note_sequences[i], height=(Window.height-40)/float(self.num_channels)*i+20, rgb = self.colors[i]) for i in range(self.num_channels)]
+        
         #self.note_sequences = [NoteSeqVisualizer(note_seq=note_sequences[i], audio_ns=NoteSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i], notes = note_sequences[i]), tempo_map=self.tempo_map, height=(Window.height-40)/float(self.num_channels)*i+20, rgb=self.colors[i]) for i in range(self.num_channels)]
         #self.note_sequences = [NoteSeqVisualizer(note_seq=note_sequences[0], audio_ns=NoteSequencer(self.sched, self.synth, channel=0+1, patch = self.patches[0], notes = note_sequences[0]), tempo_map=self.tempo_map, height=(Window.height-40)/float(self.num_channels)*0+20, rgb=self.colors[0])]
         #self.anim_group = AnimGroup()
