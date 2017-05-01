@@ -247,13 +247,13 @@ class VoicePredictor(object):
         # voice_part -> one of soprano, alto, tenor, base
 
         if voice == soprano:
-            voice_range = [36, 60]
+            voice_range = [48, 67]
         elif voice == alto:
-            voice_range = [29,53]
+            voice_range = [41,60]
         elif voice == tenor:
-            voice_range = [24, 48]
+            voice_range = [35, 53]
         else:
-            voice_range = [15,51]
+            voice_range = [28,45]
         pitch_options = {}
         for pitch in self.chord_pitches:
             pitch_options[pitch] = pitch.get_notes_in_range(voice_range)
@@ -314,10 +314,17 @@ class VoicePredictor(object):
         distances = distance_map.keys()
         distances.sort()
         best_voicings = distance_map[distances[0]]
+        highest = 0
+        best = None
         for voicing in best_voicings:
-            print voicing
+            if voicing.sum() > highest:
+                highest = voicing.sum()
+                best = voicing
         ind = randint(0, len(best_voicings) - 1)
-        return best_voicings[ind]
+        if best != None:
+            return best
+        else:
+            return best_voicings[ind]
 
 
 
@@ -328,6 +335,9 @@ class ChordVoicing(object):
         self.alto = alto
         self.tenor = tenor
         self.bass = bass
+
+    def sum(self):
+        return self.soprano + self.alto + self.tenor + self.bass
 
     def distance(self, other):
         #### NOTE: the distance metric can change based on what metric we want to use for an optional way to change voices
@@ -376,7 +386,7 @@ def create_note_sequencers(voicings, length):
 
 def kSomewhereExample():
     c_maj = Key(60, major)
-    x = ChordPredictor(riversAndRoads, 480, c_maj)
+    x = ChordPredictor(kSomewhere, 960, c_maj)
 
     chords = x.get_one_option()
 
@@ -391,6 +401,6 @@ def kSomewhereExample():
             v = VoicePredictor(chord, c_maj, voicings[i-1])
             voicings.append(v.get_best_voicing())
 
-    dictionary = create_note_sequencers(voicings, 480)
-    dictionary["solo"] = riversAndRoads
+    dictionary = create_note_sequencers(voicings, 960)
+    dictionary["solo"] = kSomewhere
     return dictionary

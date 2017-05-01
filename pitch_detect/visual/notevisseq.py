@@ -54,9 +54,10 @@ class NoteVisSequencer(InstructionGroup):
         super(NoteVisSequencer, self).__init__()
         self.sched = sched
         self.synth = synth
+
         self.channel = channel
         self.patch = patch
-
+        self.volume = 60
         self.notes = notes
         self.loop = loop
 
@@ -69,6 +70,9 @@ class NoteVisSequencer(InstructionGroup):
         self.rgb = rgb
         self.rectangles = AnimGroup()
         self.add(self.rectangles)
+
+    def set_volume(self, vol):
+        self.volume = vol
 
     def start(self):
         if self.playing:
@@ -113,7 +117,7 @@ class NoteVisSequencer(InstructionGroup):
         if idx < len(self.notes):
             dur, pitch = self.notes[idx]
             if pitch: # pitch 0 is a rest
-                self.synth.noteon(self.channel, pitch, 60)
+                self.synth.noteon(self.channel, pitch, vel=self.volume)
                 self.on_note = pitch
 
             #graphics

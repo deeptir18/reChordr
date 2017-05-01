@@ -130,16 +130,18 @@ class MainWidget(BaseWidget) :
         self.metro = Metronome(self.sched, self.synth)
 
         self.colors = [(1, 1, 1), (0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0), (1, 0, 0)]
-        self.patches = [(0, 0), (0,0), (0, 0), (0,0), (0, 0), (0, 0), (0, 0)]
+        self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4), (0, 0), (0, 0)]
         self.parts = ["Percussion", "Bass", "Tenor", "Alto", "Mezzo", "Soprano", "Melody"]
         self.num_channels = 5
         self.note_sequences = [NoteVisSequencer(self.sched, self.synth, channel = i+1, patch = self.patches[i], notes = note_sequences[i], height=(Window.height-40)/float(self.num_channels)*i+20, rgb = self.colors[i]) for i in range(self.num_channels)]
-        
+
+
         #self.note_sequences = [NoteSeqVisualizer(note_seq=note_sequences[i], audio_ns=NoteSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i], notes = note_sequences[i]), tempo_map=self.tempo_map, height=(Window.height-40)/float(self.num_channels)*i+20, rgb=self.colors[i]) for i in range(self.num_channels)]
         #self.note_sequences = [NoteSeqVisualizer(note_seq=note_sequences[0], audio_ns=NoteSequencer(self.sched, self.synth, channel=0+1, patch = self.patches[0], notes = note_sequences[0]), tempo_map=self.tempo_map, height=(Window.height-40)/float(self.num_channels)*0+20, rgb=self.colors[0])]
         #self.anim_group = AnimGroup()
         #for ns in self.note_sequences:
         #    self.anim_group.add(ns)
+
 
         for ns in self.note_sequences:
             self.canvas.add(ns)
@@ -151,6 +153,13 @@ class MainWidget(BaseWidget) :
         self.playing = False
         self.changing = False
         self.change_idx = 0
+        self.note_sequences[0].set_volume(30)
+        self.note_sequences[1].set_volume(40)
+        self.note_sequences[2].set_volume(60)
+        self.note_sequences[3].set_volume(70)
+        self.note_sequences[4].set_volume(90)
+
+
 
     def on_update(self) :
         if self.playing:
