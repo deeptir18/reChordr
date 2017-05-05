@@ -3,7 +3,19 @@ import sys
 sys.path.append('..')
 from common.core import *
 from common.gfxutil import *
-
+from common.audio import *
+from common.writer import *
+from common.mixer import *
+from common.wavegen import *
+from common.synth import *
+from common.clock import *
+from common.metro import *
+from common.noteseq import *
+from notevisseq import *
+from input.harmonycreator import *
+from kivy.graphics.instructions import InstructionGroup
+from kivy.graphics import Color, Ellipse, Rectangle, Line
+from kivy.graphics import PushMatrix, PopMatrix, Translate, Scale, Rotate
 from kivy.core.window import Window
 from kivy.clock import Clock as kivyClock
 from kivy.uix.label import Label
@@ -17,117 +29,235 @@ SHARP = "sharp"
 FLAT = "flat"
 NATURAL = "natural"
 NONE = "None"
+kSomewhere = ((960, 60), (960, 72), (480, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
+kSomewhere_mod = ((960, 60), (480, 72), (960, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
+# TODO: hook this up to RHYTHMS and to note sequencers -> and try to display an entire song
+# then add movement with a nowbar so it plays through the note sequence
+# so make the note sequencer OPTIONALLY take in an array of these stupid staff note
 
-# TODO:
-# need to take care of adding in accidentals
-# also setting the key signature
-# and adding the line if the note is above
+
+
+STAFF_LEFT_OFFSET = 20 # offset from the left side
+STAVE_SPACE_HEIGHT = 15 # height of a single space
+STAVE_HEIGHT = STAVE_SPACE_HEIGHT*5
+LINE_WIDTH = 1.2
+SOLO = "solo"
+ACCOMPANY = "accompany"
+NOTES_START = 150
+
+# draws a single Stave at the given starting position, with the right clef png, with the given pitch mapping
+# pitch mapping maps pitches to heights relative to how many "clef spaces" they are away
+# i.e., for treble clef, the the 1st line represents the E -> which is at the starting height, so to draw a E, the rectangle needs to start half a space below
+# for treble clef -> F is at 0, E is at -.5, D is at -1, C is at -1.5, B is at -2, etc.
+class Stave(InstructionGroup):
+    def __init__(self, pitch_mapping,  starting_height, clef_png, clef_start, clef_size):
+        super(Stave, self).__init__()
+        self.bottom_offset = starting_height
+        self.pitch_mapping = pitch_mapping
+        # add in the clef
+        self.clef_box = Rectangle(pos=clef_start, size=clef_size, source=clef_png)
+        self.add(self.clef_box)
+
+        # draw the lines
+        self.lines = []
+        for i in range(5):
+            line_height = self.bottom_offset + i*STAVE_SPACE_HEIGHT
+            line = Line(points=(STAFF_LEFT_OFFSET, line_height, Window.width, line_height), width=LINE_WIDTH)
+            self.lines.append(line)
+            self.add(line)
+
+    def get_pitch_height(self, pitch):
+        if pitch not in self.pitch_mapping:
+            return -1 # ERROR todo: fix this to be something proper
+        return self.bottom_offset + self.pitch_mapping[pitch]*STAVE_SPACE_HEIGHT
+
+
+# This class instantiates 3 Single staves -> 1 in treble for solo, and 1 in treble and base for the accompaniment
+# Leaves the correct amount of space in between
+# Handles note placement
+class TripleStave(InstructionGroup):
+    def __init__(self, starting_height):
+        super(TripleStave, self).__init__()
+        # draw two single staves with an additional bar on the side, and a third on top for the solo
+        space = 15
+        self.starting_height = starting_height
+        bass_clef_start = starting_height
+        treble_clef_start = bass_clef_start + STAVE_HEIGHT + space
+
+        bass_clef_png_start = (STAFF_LEFT_OFFSET, self.starting_height - 10)
+        bass_clef_png_size = (100, STAVE_HEIGHT)
+
+        treble_clef_png_start = (STAFF_LEFT_OFFSET, treble_clef_start - 10)
+        treble_clef_png_size = (100, STAVE_HEIGHT)
+
+        solo_clef_start = treble_clef_start + STAVE_HEIGHT + space
+        solo_clef_png_start = (STAFF_LEFT_OFFSET, solo_clef_start - 10)
+        solo_clef_png_size = (100, STAVE_HEIGHT)
+
+        self.bass_stave = Stave(self.get_bass_pitch_mappings(), bass_clef_start, "bass-clef.png", bass_clef_png_start, bass_clef_png_size)
+        self.treble_stave = Stave(self.get_treble_pitch_mappings(), treble_clef_start, "treble.png", treble_clef_png_start, treble_clef_png_size)
+        self.solo_stave = Stave(self.get_treble_pitch_mappings(), solo_clef_start, "treble.png", solo_clef_png_start, solo_clef_png_size)
+
+        self.left_line = Line(points=(STAFF_LEFT_OFFSET, self.starting_height, STAFF_LEFT_OFFSET, treble_clef_start + STAVE_HEIGHT - STAVE_SPACE_HEIGHT), width=LINE_WIDTH)
+        self.solo_line = Line(points=(STAFF_LEFT_OFFSET, solo_clef_start, STAFF_LEFT_OFFSET, solo_clef_start + STAVE_HEIGHT - STAVE_SPACE_HEIGHT), width=LINE_WIDTH)
+
+        self.treble_stave_start = treble_clef_start
+        self.bass_stave_start = bass_clef_start
+        self.solo_stave_start = solo_clef_start
+
+        self.add(self.bass_stave)
+        self.add(self.treble_stave)
+        self.add(self.solo_stave)
+        self.add(self.left_line)
+        self.add(self.solo_line)
+
+    # everything is in C major for now
+    def get_treble_pitch_mappings(self):
+        # F is at 0 -> so E is at -.5 and G is at + .5
+        ret = {65: 0, 64: -.5, 62: -1, 60: -1.5, 67: .5, 69: 1, 71: 1.5, 72: 2, 74: 2.5, 76: 3, 78: 3.5, 79:4}
+        return ret
+
+    def get_bass_pitch_mappings(self):
+        ret = {45: 0, 43: -.5, 41: -1, 40: -1.5, 47: .5, 48: 1, 50: 1.5, 52: 2, 53: 2.5, 55: 3, 57: 3.5, 59:4}
+        return ret
+
+    def get_pitch_height(self, pitch, note_type):
+        bass_mappings = self.get_bass_pitch_mappings()
+        treble_mappings = self.get_treble_pitch_mappings()
+        if pitch not in treble_mappings and pitch not in bass_mappings:
+            return "ERROR"
+        if note_type == SOLO:
+            if pitch not in treble_mappings:
+                return "ERROR"
+            return self.solo_stave.get_pitch_height(pitch)
+        else:
+            if pitch in treble_mappings:
+                return self.treble_stave.get_pitch_height(pitch)
+            else:
+                return self.bass_stave.get_pitch_height(pitch)
 
 class StaffNote(InstructionGroup):
-    def __init__(self, pitch, rhythm, x_start, accidental, bottom_lines, top_lines):
+    def __init__(self, pitch, stave, x_start, x_end, note_type, color):
         super(StaffNote, self).__init__()
         # create a dictionary of midi pitches
         # calculate the height from the pitch
-        self.staff_bottom_offset = Window.height/4.0
-        self.grand_staff_height = Window.height/4.0*2
-
-        # ratio of space in single staffs
-        self.single_staff_height = self.grand_staff_height*.75/2
-        self.space_height = self.grand_staff_height*.25
-        # note height
-        self.note_height = self.single_staff_height/5.0
-
-        self.height_dict = {}
-        self.top_lines = top_lines
-        self.bottom_lines = bottom_lines
-        self.bottom_line_pitches=[43, 47, 50, 53, 57 ] #g b d f a
-        self.top_line_pitches=[64, 67, 71, 74, 77] # e g b d f
-        self.bottom_space_pitches=[44, 48, 51, 54, 58]
-        self.top_space_pitches=[65, 69, 72, 75, 78]
-
-        for i in range(5):
-            self.height_dict[self.bottom_line_pitches[i]] = self.bottom_lines[i].points[1] - self.note_height/2.0
-            self.height_dict[self.bottom_space_pitches[i]] = self.bottom_lines[i].points[1]
-
-            self.height_dict[self.top_line_pitches[i]] = self.top_lines[i].points[1] - self.note_height/2.0
-            self.height_dict[self.top_space_pitches[i]] = self.top_lines[i].points[1]
-
         self.x_start = x_start
-        self.rgb = (.2,.5,.5)
-        self.color = Color(*self.rgb)
+        self.stave = stave
+        self.color = Color(color[0], color[1], color[2], .5)
         self.add(self.color)
+        self.padding = .25*(x_end - x_start)
+        self.fake_start = x_start + self.padding
+        self.length = x_end - self.padding - self.fake_start
 
-        self.size = (20, self.single_staff_height/5.0)
-        self.pos = (self.x_start, self.get_height(pitch))
+        self.size = (self.length, STAVE_SPACE_HEIGHT)
+        self.pos = (self.fake_start, self.get_height(pitch, note_type))
+        print self.size, self.pos
         self.rectangle = Rectangle(pos = self.pos, size=self.size)
         self.add(self.rectangle)
 
-    def get_height(self, pitch):
-        if pitch in self.height_dict:
-            return self.height_dict[pitch]
-        else: # need to add a sharp
-            min_dist = 0
-            closest_pitch = self.height_dict.keys()[0]
-            for p in self.height_dict:
-                dist = abs(p - pitch)
-                if dist < min_dist:
-                    min_dist = dist
-                    closest_pitch = p
-            return self.height_dict[closest_pitch]
+    def get_height(self, pitch, note_type):
+        # return the height from the stave
+        return self.stave.get_pitch_height(pitch, note_type)
 
 
+    def change_alpha(self, on):
+        if on:
+            self.color.a = 1
+        else:
+            self.color.a = .5
 
 
-class MainWidget(BaseWidget) :
+class Barline(InstructionGroup):
+    def __init__(self, stave, x_pos):
+        super(Barline, self).__init__()
+        # add four bars onto this stave
+        self.stave = stave
+        self.x_pos = x_pos # offset from "Note start"
+        self.solo_barline = Line(points=(x_pos, self.stave.solo_stave_start, x_pos, self.stave.solo_stave_start + STAVE_HEIGHT - STAVE_SPACE_HEIGHT), width=LINE_WIDTH)
+        self.accompany_barline = Line(points=(x_pos, self.stave.bass_stave_start, x_pos, self.stave.treble_stave_start + STAVE_HEIGHT - STAVE_SPACE_HEIGHT), width=LINE_WIDTH)
+        self.add(self.solo_barline)
+        self.add(self.accompany_barline)
+
+class MainWidget2(BaseWidget) :
     def __init__(self):
-        super(MainWidget, self).__init__()
-        self.info = Label(text = "text", valign='top', font_size='18sp',
-              pos=(Window.width * 0.8, Window.height * 0.4),
-              text_size=(Window.width, Window.height))
-        self.add_widget(self.info)
+        super(MainWidget2, self).__init__()
+        somewhere = kSomewhereExample()
+        lines = ["BASS", "TENOR", "ALTO", "SOPRANO", "solo"]
+        note_sequences = [list(somewhere[key]) for key in lines]
 
-        self.draw_staff()
+        # now instantiate the music stuff
+        self.bottom_stave = TripleStave(10)
+        self.audio = Audio(2)
+        self.tempo_map  = SimpleTempoMap(100)
 
-    def draw_staff(self):
-        self.staff_left_offset = 20
-        self.staff_bottom_offset = Window.height/4.0
-        self.grand_staff_height = Window.height/4.0*2
+        # connect scheduler into audio system
 
-        # ratio of space in single staffs
-        self.single_staff_height = self.grand_staff_height*.75/2
-        self.space_height = self.grand_staff_height*.25
+        self.synth = Synth('../../data/FluidR3_GM.sf2')
+        self.sched = AudioScheduler(self.tempo_map)
+        self.audio.set_generator(self.sched)
+        self.sched.set_generator(self.synth)
+        self.patch = (0, 42)
+        self.top_stave = TripleStave(Window.height/2)
+        self.canvas.add(self.bottom_stave)
+        self.canvas.add(self.top_stave)
+        self.bar_length = (Window.width - NOTES_START)/4.0
+        self.measure_time = 960
+        self.playing = False
+        x_pos = NOTES_START
+        for i in range(4):
+            self.canvas.add(Barline(self.top_stave, x_pos))
+            self.canvas.add(Barline(self.bottom_stave, x_pos))
+            x_pos += self.bar_length
 
-        start = self.staff_bottom_offset
-        end = start + self.grand_staff_height
-        self.staff_left = Line(points=(self.staff_left_offset, start, self.staff_left_offset, end), width=2)
-        self.canvas.add(self.staff_left)
+        self.colors = [(1, 1, 1), (0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0), (1, 0, 0)]
+        self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4), (0, 0), (0, 0)]
 
-        # now two sets of 5 lines coming out
-        self.bottom_lines = []
-        self.top_lines = []
-
-        # now add treble and base clef -> NOTE: need to hardcode sort of how they fit into the staff lines
-        self.bass_box = Rectangle(pos=(self.staff_left_offset, self.staff_bottom_offset-10), size=(100, self.single_staff_height), source="bass-clef.png")
-        self.treble_box = Rectangle(pos=(self.staff_left_offset, self.staff_bottom_offset + self.single_staff_height + self.space_height), size=(100, self.single_staff_height+20), source="treble.png")
-        self.canvas.add(self.bass_box)
-        self.canvas.add(self.treble_box)
-
-        for i in range(5):
-            bottom_height = self.staff_bottom_offset + i*(self.single_staff_height)/5.0
-            top_height = self.staff_bottom_offset + self.single_staff_height + self.space_height + (i+1)*(self.single_staff_height)/5.0
-            bottom_line = Line(points=(self.staff_left_offset, bottom_height, Window.width, bottom_height), width=2)
-            top_line = Line(points=(self.staff_left_offset, top_height, Window.width, top_height), width=2)
-            self.bottom_lines.append(bottom_line)
-            self.top_lines.append(top_line)
-
-            self.canvas.add(bottom_line)
-            self.canvas.add(top_line)
-
-        self.canvas.add(StaffNote(69, 0, 200, NONE, self.bottom_lines, self.top_lines))
+        self.num_channels = 5
+        self.note_sequences = [NoteSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i], notes = note_sequences[i], loop=True, note_cb=None, note_staffs=self.render_note_sequence(note_sequences[i], lines[i], self.colors[i])) for i in range(self.num_channels)]
 
 
 
 
+    def on_key_down(self, keycode, modifiers):
+        if keycode[1] == 'p':
+            self.playing = not self.playing
+
+        if keycode[1] == 's':
+            if not self.playing:
+                self.playing = True
+                for ns in self.note_sequences:
+                    ns.start()
 
 
-run(MainWidget)
+
+    def render_note_sequence(self, seq, note_type, color): # renders a 4 bar note sequence
+        print seq
+        self.time_passed = 0
+        self.note_staffs = []
+        if note_type == "solo": # fix the constants TODO
+            note_type == SOLO
+        else:
+            note_type = ACCOMPANY
+        if note_type == SOLO:
+            color = (.2, .5, .5)
+        else:
+            color = color
+        for note in seq:
+            length = note[0]
+            start = (self.time_passed/(960*4.0))*(Window.width - NOTES_START) + NOTES_START
+            end = start + length/(960*4.0)*(Window.width - NOTES_START)
+
+            pitch = note[1]
+            note = StaffNote(pitch, self.top_stave, start, end, note_type, color)
+            self.note_staffs.append(note)
+            self.canvas.add(note)
+            self.time_passed += length
+        return self.note_staffs
+
+
+    def on_update(self) :
+        if self.playing:
+            self.audio.on_update()
+
+
+run(MainWidget2)

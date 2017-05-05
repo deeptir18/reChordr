@@ -247,13 +247,13 @@ class VoicePredictor(object):
         # voice_part -> one of soprano, alto, tenor, base
 
         if voice == soprano:
-            voice_range = [48, 67]
+            voice_range = [65, 72]
         elif voice == alto:
-            voice_range = [41,60]
+            voice_range = [55,65]
         elif voice == tenor:
-            voice_range = [35, 53]
+            voice_range = [48, 53]
         else:
-            voice_range = [28,45]
+            voice_range = [43,55]
         pitch_options = {}
         for pitch in self.chord_pitches:
             pitch_options[pitch] = pitch.get_notes_in_range(voice_range)

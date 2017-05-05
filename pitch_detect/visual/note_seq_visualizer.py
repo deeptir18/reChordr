@@ -135,14 +135,6 @@ class MainWidget(BaseWidget) :
         self.num_channels = 5
         self.note_sequences = [NoteVisSequencer(self.sched, self.synth, channel = i+1, patch = self.patches[i], notes = note_sequences[i], height=(Window.height-40)/float(self.num_channels)*i+20, rgb = self.colors[i]) for i in range(self.num_channels)]
 
-
-        #self.note_sequences = [NoteSeqVisualizer(note_seq=note_sequences[i], audio_ns=NoteSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i], notes = note_sequences[i]), tempo_map=self.tempo_map, height=(Window.height-40)/float(self.num_channels)*i+20, rgb=self.colors[i]) for i in range(self.num_channels)]
-        #self.note_sequences = [NoteSeqVisualizer(note_seq=note_sequences[0], audio_ns=NoteSequencer(self.sched, self.synth, channel=0+1, patch = self.patches[0], notes = note_sequences[0]), tempo_map=self.tempo_map, height=(Window.height-40)/float(self.num_channels)*0+20, rgb=self.colors[0])]
-        #self.anim_group = AnimGroup()
-        #for ns in self.note_sequences:
-        #    self.anim_group.add(ns)
-
-
         for ns in self.note_sequences:
             self.canvas.add(ns)
 
