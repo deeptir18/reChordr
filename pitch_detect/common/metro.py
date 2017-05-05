@@ -35,6 +35,7 @@ class Metronome(object):
 
         # set up the correct sound (program change)
         self.synth.program(self.channel, self.patch[0], self.patch[1])
+        self.synth.cc(self.channel, 7, 60)
 
         # find the tick of the next beat, and make it "beat aligned"
         now = self.sched.get_tick()

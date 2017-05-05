@@ -28,17 +28,18 @@ class TimeSig(object):
         self.top = top
         self.bottom = bottom
 class Pitch(object):
-    def __init__(self, abs_pitch, abs_confidence, rel_pitch, rel_confidence):
+    def __init__(self, abs_pitch, abs_confidence, rel_pitch, rel_confidence, last_pitch):
         self.abs_pitch = abs_pitch
         self.rel_pitch = rel_pitch
         self.abs_confidence = abs_confidence
         self.rel_confidence = rel_confidence
+        self.last_pitch = last_pitch
 
     def get_best_guess(self):
         if self.abs_confidence > self.rel_confidence:
             return int(self.abs_pitch)
         else:
-            return int(self.rel_pitch)
+            return self.last_pitch.get_best_guess() + int(self.rel_pitch)
 
 class NoteInfo(object):
     def __init__(self, pitch, duration):

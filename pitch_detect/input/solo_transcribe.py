@@ -78,7 +78,6 @@ class RhythmDetector(object):
             self.last_real_tick = now
             self.last_quantized_tick += duration
             self.durations.append(duration)
-        print self.durations
 
     def set_tempo(self, tempo):
         self.tempo = tempo
@@ -88,11 +87,9 @@ class RhythmDetector(object):
     # takes in a tick, and snaps the tick to a recognizable beat
     # according to rhythm_profile
     def snap_note_to_grid(self, tick):
-        print tick
         beats = int(tick/kTicksPerQuarter)
         tick = tick - beats*kTicksPerQuarter
         tick = float(tick*self.grid)/float(kTicksPerQuarter)
-        print tick
         snap = bisect_left(self.rhythm_profile, tick)
         return beats*kTicksPerQuarter + snap*kTicksPerQuarter/self.grid
 
@@ -116,8 +113,18 @@ class PitchSnap(object):
         if not self.started:
             self.start()
         self.pitches = np.array(self.pitches)
+        pre_len = len(self.pitches)
         self.pitches = [a for a in self.pitches if a > self.low_pitch and a < self.high_pitch]
-        if len(self.pitches) > 0:
+        if pre_len > 0 and len(self.pitches)/float(pre_len) < .5:
+            abs_pitch = 0
+            abs_confidence = len(self.pitches)/float(pre_len)
+            self.abs_pitches.append((abs_pitch, abs_confidence))
+            rel_pitch = -1*round(self.last_pitch)
+            rel_confidence = len(self.pitches)/float(pre_len)
+            self.rel_pitches.append((rel_pitch, rel_confidence))
+            self.last_pitch = 0
+        elif len(self.pitches) > 0:
+
             avg = np.percentile(self.pitches, 50)
 
             abs_pitch = round(avg)
@@ -126,13 +133,12 @@ class PitchSnap(object):
             self.abs_pitches.append((abs_pitch, abs_confidence))
 
             rel_pitch = round(avg - self.last_pitch)
-            rel_array = [a for a in self.pitches if a >= rel_pitch - .5 and a <= rel_pitch + .5]
+            rel_array = [a for a in self.pitches if a - self.last_pitch >= rel_pitch - .5 and a - self.last_pitch <= rel_pitch + .5]
+            #rel_confidence = 0
             rel_confidence = float(len(rel_array))/float(len(self.pitches))
             self.rel_pitches.append((rel_pitch, rel_confidence))
 
             self.last_pitch = avg
-            print self.abs_pitches
-            print self.rel_pitches
         self.pitches = []
 
 
@@ -175,6 +181,7 @@ class MainWidget1(BaseWidget) :
         self.metro = Metronome(self.sched, self.synth)
 
         self.pitch_snap = PitchSnap()
+        self.last_pitch = Pitch(0, 1, 0, 0, None)
 
         # used for playback
         self.song = []
@@ -234,10 +241,12 @@ class MainWidget1(BaseWidget) :
 
         # turn sequencer on/off
         if keycode[1] == '2':
-            print self.song
+            print 'song', self.song
             print self.seq.notes
             self.seq.notes = self.song
             self.seq.toggle()
+            print 'absolute', self.pitch_snap.abs_pitches
+            print 'relative', self.pitch_snap.rel_pitches
 
         if keycode[1] == 'p':
             self.playback = not self.playback
@@ -256,8 +265,9 @@ class MainWidget1(BaseWidget) :
                 duration = self.rhythm_detector.durations[-1]
                 abs_pitch = self.pitch_snap.abs_pitches[-1]
                 rel_pitch = self.pitch_snap.rel_pitches[-1]
-                pitch_obj = Pitch(abs_pitch[0], abs_pitch[1], rel_pitch[0], rel_pitch[1])
+                pitch_obj = Pitch(abs_pitch[0], abs_pitch[1], rel_pitch[0], rel_pitch[1], self.last_pitch)
                 pitch = pitch_obj.get_best_guess()
+                self.last_pitch = pitch_obj
                 noteinfo = NoteInfo(pitch_obj, duration)
                 self.note_song.add_to_solo_voice(noteinfo)
                 self.song.append((int(duration), int(pitch)))
@@ -272,7 +282,6 @@ class MainWidget1(BaseWidget) :
         # adjust tempo
         tempo_ctrl = lookup(keycode[1], ('left', 'right'), (-5, 5))
         if tempo_ctrl:
-            print self.tempo
             self.tempo += tempo_ctrl
             self.rhythm_detector.set_tempo(self.tempo)
 
@@ -282,6 +291,8 @@ class MainWidget1(BaseWidget) :
             self.sched.set_generator(self.synth)
 
             self.metro = Metronome(self.sched, self.synth)
+
+            self.seq = NoteSequencer(self.sched, self.synth, 1, (0, 0), self.song, False, self.add_snips)
 
     def _process_input(self) :
         data = combine_buffers(self.input_buffers)
