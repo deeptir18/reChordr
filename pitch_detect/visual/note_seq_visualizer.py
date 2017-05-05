@@ -130,7 +130,7 @@ class MainWidget(BaseWidget) :
         self.metro = Metronome(self.sched, self.synth)
 
         self.colors = [(1, 1, 1), (0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0), (1, 0, 0)]
-        self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4), (0, 0), (0, 0)]
+        self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 40), (0, 0), (0, 0)]
         self.parts = ["Percussion", "Bass", "Tenor", "Alto", "Mezzo", "Soprano", "Melody"]
         self.num_channels = 5
         self.note_sequences = [NoteVisSequencer(self.sched, self.synth, channel = i+1, patch = self.patches[i], notes = note_sequences[i], height=(Window.height-40)/float(self.num_channels)*i+20, rgb = self.colors[i]) for i in range(self.num_channels)]

@@ -18,7 +18,7 @@ from common.pitchdetect import *
 from math import *
 
 
-from random import randint
+from random import randint, random
 import aubio
 from bisect import bisect_left
 import numpy as np
@@ -35,6 +35,7 @@ nat_minor = 'NATURAL_MINOR'
 
 voice_map ={"SOPRANO": 0, "ALTO": 1, "TENOR": 2, "BASS": 3}
 scales={"MAJOR": (0, 2, 4, 5, 7, 9, 11), "HARMONIC_MINOR": (0, 2, 3, 5, 7, 8, 11), "NATURAL_MINOR": (0, 2, 3, 5, 7, 8, 10)}
+chord_types={"MAJOR": (0, 4, 7), "MINOR": (0, 3, 7), "DIM": (0, 3, 6), "AUG": (0, 4, 8), "SUS4": (0, 5, 7)}
 
 # takes in int representing midi pitch
 class PitchClass(object):
@@ -50,7 +51,6 @@ class PitchClass(object):
         ret = range(pitch_range[0], pitch_range[1])
         ret = [i for i in ret if self.contains(i)]
         return ret
-
 
     def __str__(self):
         names = ['C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G', 'G#/Ab', 'A', 'A#/Bb', 'B']
@@ -87,14 +87,22 @@ class Key(object):
                 return self.scale.index(x) + 1
         return -1
 
-# scale_degrees is a tuple
+# semitones_above_key is an int corresponding to the bass note
+# chord_type is MAJOR, MINOR, DIM, AUG, or SUS4
 class Chord(object):
-    def __init__(self, scale_degrees):
+    def __init__(self, semitones_above_key, chord_type):
         super(Chord, self).__init__()
-        self.scale_degrees = scale_degrees
+        self.semitones_above_key = semitones_above_key
+        if chord_type in chord_types:
+            self.chord_pitches = chord_types[chord_type]
+        else:
+            self.chord_pitches = []
 
     def contains(self, midi, key):
-        return (key.get_scale_degree(midi) in self.scale_degrees)
+        for x in self.chord_pitches:
+            if PitchClass(key.pitch + self.semitones_above_key + x).contains(midi):
+                return True
+        return False
 
     def get_chord_in_key(self, key):
         pitches = []
@@ -103,45 +111,84 @@ class Chord(object):
                 pitches.append(PitchClass(i))
         return pitches
 
-    def get_consonance(self, measure, key, coeffs=None):
-        if not coeffs:
-            coeffs = [1.]*len(self.scale_degrees)
+    def get_consonance(self, measure, key):
         consonance = 0
         total = 0
         for note in measure:
             if note[1] > 0:
                 total += note[0]
-                x = key.get_scale_degree(note[1])
-                if x in self.scale_degrees:
-                    idx = self.scale_degrees.index(x)
-                    consonance += coeffs[idx]*note[0]
+                if self.contains(note[1], key):
+                    consonance += note[0]
         if total == 0:
             return 0
         return float(consonance)/float(total)
 
     def __str__(self):
-        return str(self.scale_degrees)
+        ret = ''
+        for x in self.get_chord_in_key(Key(60, "MAJOR")):
+            ret += str(x) + ' '
+        return ret
+
+    def __eq__(self, other):
+        return str(self) == str(other)
+
+mat_chords = []
+for i in range(12):
+    mat_chords.append(Chord(i, "MAJOR"))
+    mat_chords.append(Chord(i, "MINOR"))
+    mat_chords.append(Chord(i, "DIM"))
+    mat_chords.append(Chord(i, "AUG"))
+    mat_chords.append(Chord(i, "SUS4"))
+
+def read_matrix(filepath):
+    start = []
+    transition = []
+    end = []
+    file = open(filepath)
+    lines = file.readlines()
+    start_len = int(lines.pop(0))
+    for i in range(start_len):
+        start.append(float(lines.pop(0)))
+    start = np.array(start)
+    dims = lines.pop(0).split(' ')
+    dims[0] = int(dims[0])
+    dims[1] = int(dims[1])
+    for i in range(dims[1]):
+        row = []
+        for j in range(dims[0]):
+            row.append(float(lines.pop(0)))
+        transition.append(np.array(row))
+    transition = np.array(transition)
+    end_len = int(lines.pop(0))
+    for i in range(end_len):
+        end.append(float(lines.pop(0)))
+    end = np.array(end)
+    return start, transition, end
 
 
-one_chord = Chord((1, 3, 5))
-four_chord = Chord((4, 6, 1))
-five_chord = Chord((5, 7, 2))
-six_chord = Chord((6, 1, 3))
-three_chord = Chord((3, 5, 7))
-two_chord = Chord((2, 4, 6))
-seven_chord = Chord((7, 2, 4))
+matrix = read_matrix('../../data/pop.txt')
 
-maj_chords = set([one_chord, two_chord, three_chord, four_chord,
-              five_chord, six_chord, seven_chord])
 
-maj_edges = {three_chord: set([three_chord, six_chord]),
-             six_chord: set([two_chord, four_chord, six_chord]),
-             two_chord: set([two_chord, five_chord, seven_chord]),
-             four_chord: set([four_chord, five_chord, seven_chord]),
-             five_chord: set([one_chord, five_chord]),
-             seven_chord: set([one_chord, three_chord, seven_chord]),
-             one_chord: set([one_chord, two_chord, three_chord, four_chord,
-                            five_chord, six_chord, seven_chord])}
+
+# one_chord = Chord((1, 3, 5))
+# four_chord = Chord((4, 6, 1))
+# five_chord = Chord((5, 7, 2))
+# six_chord = Chord((6, 1, 3))
+# three_chord = Chord((3, 5, 7))
+# two_chord = Chord((2, 4, 6))
+# seven_chord = Chord((7, 2, 4))
+
+# maj_chords = set([one_chord, two_chord, three_chord, four_chord,
+#               five_chord, six_chord, seven_chord])
+
+# maj_edges = {three_chord: set([three_chord, six_chord]),
+#              six_chord: set([two_chord, four_chord, six_chord]),
+#              two_chord: set([two_chord, five_chord, seven_chord]),
+#              four_chord: set([four_chord, five_chord, seven_chord]),
+#              five_chord: set([one_chord, five_chord]),
+#              seven_chord: set([one_chord, three_chord, seven_chord]),
+#              one_chord: set([one_chord, two_chord, three_chord, four_chord,
+#                             five_chord, six_chord, seven_chord])}
 
 
 
@@ -203,34 +250,68 @@ class ChordPredictor(object):
             measures.append(current_measure)
         return measures
 
-    def get_all_next_chords(self, idx, prev_chord=None):
+    def get_possible_chords(self, idx):
         if idx >= len(self.measures) or idx < 0:
             return []
         measure = self.measures[idx]
-        if prev_chord and self.key.scale_type == major:
-            potential_chords = maj_edges[prev_chord]
-        else:
-            potential_chords = maj_chords
-        chord_weights = {}
-        for chord in potential_chords:
-            chord_weights[chord] = chord.get_consonance(measure, self.key)
-        max_val = min(.5, max(chord_weights.values()))
-        chords = [key for key in chord_weights.keys() if chord_weights[key] >= max_val]
+        chord_weights = []
+        for chord in mat_chords:
+            chord_weights.append(chord.get_consonance(measure, self.key))
+        max_val = max(chord_weights)
+        chords = [1 if val >= max_val else 0 for val in chord_weights]
         return chords
 
-    def get_one_next_chord(self, idx, prev_chord=None):
-        chords = self.get_all_next_chords(idx, prev_chord)
-        rand_int = randint(0, len(chords) - 1)
-        return chords[rand_int]
+    def get_top_three(self, idx):
+        chords = self.get_possible_chords(idx)
+        top_three = []
+        while len(top_three) < 3:
+            i = randint(0, len(chords) - 1)
+            if chords[i] == 1:
+                top_three.append(mat_chords[i])
+        return top_three
 
-    def get_one_option(self):
+
+    def get_one_chord(self, idx, prev_chord=None):
+        chords = self.get_possible_chords(idx)
+        row = []
+        if not prev_chord:
+            row = matrix[0]
+        else:
+            row = matrix[1][mat_chords.index(prev_chord)]
+
+        rand = random()
+        row = row*np.array(chords)
+        
+        index = np.argmax(abs(row))
+        return mat_chords[index]
+
+    def get_all_chords(self):
+        chords = [self.get_one_chord(0)]
+        for i in range(len(self.measures)):
+            chords.append(self.get_one_chord(i, chords[i-1]))
+        return chords
+
+    def get_all_possible_chord_progs(self):
         chords = []
         for i in range(len(self.measures)):
-            if i > 0:
-                chords.append(self.get_one_next_chord(i, chords[i-1]))
-            else:
-                chords.append(self.get_one_next_chord(i))
+            chords.append(self.get_top_three(i))
+        return list(itertools.product(*chords))
+
+    def get_best_chord_prog(self, chord_progs, matrix):
+        best_fit = -10000
+        best_chords = None
+        fit = 0
+        for chords in chord_progs:
+            fit = matrix[0][mat_chords.index(chords[0])]
+            for i in range(1, len(chords)):
+                fit += matrix[1][mat_chords.index(chords[i-1])][mat_chords.index(chords[i])]
+            fit += matrix[2][mat_chords.index(chords[-1])]
+            if fit > best_fit:
+                best_fit = fit
+                best_chords = chords
         return chords
+
+
 
 
 class VoicePredictor(object):
@@ -255,6 +336,7 @@ class VoicePredictor(object):
         else:
             voice_range = [28,45]
         pitch_options = {}
+
         for pitch in self.chord_pitches:
             pitch_options[pitch] = pitch.get_notes_in_range(voice_range)
         return pitch_options
@@ -312,7 +394,6 @@ class VoicePredictor(object):
                 distance_map[dist].append(voicing)
 
         distances = distance_map.keys()
-        distances.sort()
         best_voicings = distance_map[distances[0]]
         highest = 0
         best = None
@@ -369,6 +450,19 @@ riversAndRoads = ((480, 0), (240, 55), (480, 60), (240, 62), (480, 64), (240, 67
                   (480, 69), (240, 67), (360, 64), (120, 64), (240, 67),
                   (480, 69), (240, 69), (480, 67), (240, 60), (240, 64), (480*3+240, 0))
 
+quarter = 480
+diamonds = ((quarter*1.5, 0), (quarter*0.5, 62), (quarter*0.5, 64), (quarter*0.25, 57), (quarter*0.25, 57), (quarter*0.25, 62), (quarter*0.25, 64), (quarter*0.5, 64), (quarter, 64),
+(quarter*0.5, 64), (quarter*0.5, 64), (quarter*0.5, 64), (quarter*0.25, 64), (quarter*0.5, 64), (quarter*0.75, 62), (quarter, 0),
+(quarter*0.25, 62), (quarter*0.5, 62), (quarter*0.75, 62), (quarter*0.5, 0), (quarter*0.25, 62), (quarter*0.5, 62), (quarter*0.75, 62), (quarter, 0),
+(quarter*0.25, 60), (quarter*0.25, 60), (quarter*0.5, 62), (quarter*0.5, 62), (quarter*0.5, 62), (quarter*0.5, 64), (quarter, 57),
+(quarter*0.5, 0), (quarter*0.5, 62), (quarter*0.5, 64), (quarter*0.25, 57), (quarter*0.25, 57), (quarter*0.25, 62), (quarter*0.25, 64), (quarter*0.5, 64), (quarter, 64),
+(quarter*0.5, 64), (quarter*0.5, 64), (quarter*0.5, 64), (quarter*0.25, 64), (quarter*0.5, 64), (quarter*0.75, 62), (quarter, 0),
+(quarter*0.25, 62), (quarter*0.5, 62), (quarter*0.75, 62), (quarter*0.5, 0), (quarter*0.25, 62), (quarter*0.5, 62), (quarter*0.75, 62), (quarter, 0),
+(quarter*0.25, 60), (quarter*0.25, 60), (quarter*0.5, 62), (quarter*0.5, 62), (quarter*0.5, 62), (quarter*0.5, 64), (quarter, 57),
+(quarter, 64), (quarter, 62), (quarter, 65), (quarter, 64), (quarter, 57), (quarter, 57), (quarter, 64), (quarter*0.5, 64), (quarter*0.25, 64), (quarter*1.5, 62),
+(quarter*6.75, 0),
+(quarter, 64), (quarter, 62), (quarter, 65), (quarter, 64), (quarter, 57), (quarter, 57), (quarter, 64), (quarter*0.5, 64), (quarter*0.25, 64), (quarter*1.5, 62), (quarter*1.75, 0))
+
 
 def create_note_sequencers(voicings, length):
     sop = ()
@@ -385,15 +479,17 @@ def create_note_sequencers(voicings, length):
     return {soprano: sop, alto: alt, tenor: ten, bass: bas}
 
 def kSomewhereExample():
-    c_maj = Key(60, major)
-    x = ChordPredictor(kSomewhere, 960, c_maj)
+    c_maj = Key(69, major)
+    x = ChordPredictor(allMyLoving, 960, c_maj)
 
-    chords = x.get_one_option()
+    chord_progs = x.get_all_possible_chord_progs()
+
+    chords = x.get_best_chord_prog(chord_progs[0:100], matrix)
 
     voicings = []
     for i in range(len(chords)):
         chord = chords[i]
-        print chord
+        print i, chord
         if i == 0:
             v = VoicePredictor(chord, c_maj)
             voicings.append(v.get_initial_voicing())
@@ -402,5 +498,5 @@ def kSomewhereExample():
             voicings.append(v.get_best_voicing())
 
     dictionary = create_note_sequencers(voicings, 960)
-    dictionary["solo"] = kSomewhere
+    dictionary["solo"] = allMyLoving
     return dictionary
