@@ -12,7 +12,7 @@ from common.clock import *
 from common.metro import *
 from common.noteseq import *
 from notevisseq import *
-from input.harmonycreator import *
+#from input.harmonycreator import *
 from kivy.graphics.instructions import InstructionGroup
 from kivy.graphics import Color, Ellipse, Rectangle, Line
 from kivy.graphics import PushMatrix, PopMatrix, Translate, Scale, Rotate
@@ -47,7 +47,7 @@ class NoteSeqVisualizer(InstructionGroup):
         self.audio_ns.stop()
 
     def toggle(self):
-    	if self.playing:
+        if self.playing:
             self.stop()
         else:
             self.start()
@@ -101,14 +101,14 @@ diamonds_perc = [(quarter*32, 0), (quarter*0.75, 36), (quarter*0.75, 38), (quart
 (quarter*0.75, 36), (quarter*0.75, 38), (quarter, 36), (quarter*0.5, 36), (quarter*0.5, 38), (quarter*0.25, 42), (quarter*0.25, 42)]
 
 note_sequences = [diamonds_perc, diamonds_bass, diamonds_tenor, diamonds_alto, diamonds_mezzo, diamonds_soprano, diamonds_melody]
-somewhere = kSomewhereExample()
+#somewhere = kSomewhereExample()
 lines = ["BASS", "TENOR", "ALTO", "SOPRANO", "solo"]
-note_sequences = [list(somewhere[key]) for key in lines]
+#note_sequences = [list(somewhere[key]) for key in lines]
 
 class MainWidget(BaseWidget) :
     def __init__(self):
         super(MainWidget, self).__init__()
-        print kSomewhereExample()
+        #print kSomewhereExample()
 
         self.info = Label(text = "text", valign='top', font_size='18sp',
               pos=(Window.width * 0.8, Window.height * 0.4),
@@ -116,7 +116,7 @@ class MainWidget(BaseWidget) :
         self.add_widget(self.info)
 
         self.audio = Audio(2)
-        self.synth = Synth('../../data/FluidR3_GM.sf2')
+        self.synth = Synth('../data/FluidR3_GM.sf2')
 
         # create TempoMap, AudioScheduler
         self.tempo_map  = SimpleTempoMap(100)
@@ -129,11 +129,19 @@ class MainWidget(BaseWidget) :
         # create the metronome:
         self.metro = Metronome(self.sched, self.synth)
 
-        self.colors = [(1, 1, 1), (0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0), (1, 0, 0)]
-        self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4), (0, 0), (0, 0)]
+        self.colors = [(1, 0.5, 0), (0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0), (1, 0, 0)]
+        self.patches = [(128, 0), (0, 42), (0,41), (0, 41), (0, 40), (0,40), (0, 4)]
         self.parts = ["Percussion", "Bass", "Tenor", "Alto", "Mezzo", "Soprano", "Melody"]
-        self.num_channels = 5
+        self.num_channels = 7
         self.note_sequences = [NoteVisSequencer(self.sched, self.synth, channel = i+1, patch = self.patches[i], notes = note_sequences[i], height=(Window.height-40)/float(self.num_channels)*i+20, rgb = self.colors[i]) for i in range(self.num_channels)]
+
+
+        #self.note_sequences = [NoteSeqVisualizer(note_seq=note_sequences[i], audio_ns=NoteSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i], notes = note_sequences[i]), tempo_map=self.tempo_map, height=(Window.height-40)/float(self.num_channels)*i+20, rgb=self.colors[i]) for i in range(self.num_channels)]
+        #self.note_sequences = [NoteSeqVisualizer(note_seq=note_sequences[0], audio_ns=NoteSequencer(self.sched, self.synth, channel=0+1, patch = self.patches[0], notes = note_sequences[0]), tempo_map=self.tempo_map, height=(Window.height-40)/float(self.num_channels)*0+20, rgb=self.colors[0])]
+        #self.anim_group = AnimGroup()
+        #for ns in self.note_sequences:
+        #    self.anim_group.add(ns)
+
 
         for ns in self.note_sequences:
             self.canvas.add(ns)
@@ -145,12 +153,14 @@ class MainWidget(BaseWidget) :
         self.playing = False
         self.changing = False
         self.change_idx = 0
+        self.change_note = 0
+        '''
         self.note_sequences[0].set_volume(30)
         self.note_sequences[1].set_volume(40)
         self.note_sequences[2].set_volume(60)
         self.note_sequences[3].set_volume(70)
         self.note_sequences[4].set_volume(90)
-
+        '''
 
 
     def on_update(self) :
@@ -165,6 +175,8 @@ class MainWidget(BaseWidget) :
         self.info.text = ""
         if self.changing:
             self.info.text += "Changing: " + self.parts[self.change_idx]
+        if not self.changing:
+            self.note_sequences[self.change_idx].un_highlight(self.change_note)
 
     def on_key_down(self, keycode, modifiers):
         if keycode[1] == 'm':
@@ -183,14 +195,50 @@ class MainWidget(BaseWidget) :
         if keycode[1] == 'c':
             if not self.playing:
                 self.changing = not self.changing
+                if self.changing:
+                    self.change_note = self.note_sequences[self.change_idx].current_note_index()
+                    self.note_sequences[self.change_idx].highlight(self.change_note)
+                else:
+                    self.note_sequences[self.change_idx].un_highlight(self.change_note)
 
         if keycode[1] == 'up':
             if self.changing:
-                self.change_idx = (self.change_idx+1)%self.num_channels
+                #move note up from change_idx
+                self.note_sequences[self.change_idx].up_semitone(self.change_note)
 
         if keycode[1] == 'down':
             if self.changing:
-                self.change_idx = (self.change_idx-1)%self.num_channels
+                #move note down from change_idx
+                self.note_sequences[self.change_idx].down_semitone(self.change_note)
+
+        if keycode[1] == 'right':
+            if self.changing:
+                self.note_sequences[self.change_idx].un_highlight(self.change_note)
+                self.change_note += 1
+                self.note_sequences[self.change_idx].highlight(self.change_note)
+
+        if keycode[1] == 'left':
+            if self.changing:
+                self.note_sequences[self.change_idx].un_highlight(self.change_note)
+                self.change_note -= 1
+                self.note_sequences[self.change_idx].highlight(self.change_note)
+
+    def on_touch_down(self, touch):
+        if self.changing:
+            (x, y) = touch.pos
+            self.note_sequences[self.change_idx].un_highlight(self.change_note)
+            self.change_idx = self.find_part(y)
+            self.change_note = self.note_sequences[self.change_idx].current_note_index()
+            self.note_sequences[self.change_idx].highlight(self.change_note)
+
+    def find_part(self, y_pos):
+        height = [(Window.height-40)/float(self.num_channels)*i+20 for i in range(self.num_channels)]
+        for i in range(self.num_channels-1):
+            if y_pos < height[i+1]:
+                return i
+        return self.num_channels-1
+
+
 
 # pass in which MainWidget to run as a command-line arg
 run(MainWidget)

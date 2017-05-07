@@ -18,7 +18,6 @@ from kivy.graphics import Color, Ellipse, Rectangle, Line
 class MovingRectangle(InstructionGroup):
     def __init__(self, pos, width, height, rgb):
         super(MovingRectangle, self).__init__()
-
         self.rgb = rgb
         self.color = Color(*rgb)
         self.add(self.color)
@@ -33,6 +32,16 @@ class MovingRectangle(InstructionGroup):
 
         self.passed = False
 
+    def set_ypos(self, ypos):
+        (x, y) = self.rectangle.pos
+        self.rectangle.pos = (x, ypos)
+
+    def highlight(self):
+        self.color.rgb = (1, 1, 1)
+
+    def un_highlight(self):
+        self.color.rgb = self.rgb
+
     def on_update(self, dt):
         # animate position
         (x, y) = self.rectangle.pos
@@ -40,7 +49,8 @@ class MovingRectangle(InstructionGroup):
         if x < 100 and not self.passed:
             self.passed = True
             (a, b, c) = self.color.rgb
-            self.color.rgb = (0.3*a, 0.3*b, 0.3*c)
+            self.rgb = (0.3*a, 0.3*b, 0.3*c)
+            self.color.rgb = self.rgb
         # advance time
         self.time += dt
         # continue flag
@@ -68,8 +78,11 @@ class NoteVisSequencer(InstructionGroup):
 
         self.height = height
         self.rgb = rgb
+        self.note_rectangles = [MovingRectangle((Window.width-100, self.height+pitch*1.5-50), dur*0.05, 5, self.rgb) for (dur, pitch) in notes]
         self.rectangles = AnimGroup()
         self.add(self.rectangles)
+
+        self.cur_idx = 0
 
     def set_volume(self, vol):
         self.volume = vol
@@ -111,7 +124,7 @@ class NoteVisSequencer(InstructionGroup):
         # if looping, go back to beginning
         if self.loop and idx >= len(self.notes):
             idx = 0
-            self.cur_aud_idx = 0
+            self.cur_idx = 0
 
         # play new note if available
         if idx < len(self.notes):
@@ -124,16 +137,17 @@ class NoteVisSequencer(InstructionGroup):
             #self.rectangles.add(MovingRectangle((100, self.height+pitch), dur*0.05, 5, self.rgb))
 
             # schedule the next note:
+            self.cur_idx += 1
             self.on_cmd = self.sched.post_at_tick(tick+dur, self._note_on, idx+1)
 
     def _rectangle(self, tick, idx):
         if self.loop and idx >= len(self.notes):
             idx = 0
-            self.cur_rect_idx = 0
+            self.note_rectangles = [MovingRectangle((Window.width-100, self.height+pitch*1.5-50), dur*0.05, 5, self.rgb) for (dur, pitch) in self.notes]
         if idx < len(self.notes):
             dur, pitch = self.notes[idx]
             if pitch != 0:
-                self.rectangles.add(MovingRectangle((Window.width-100, self.height+pitch*1.5-50), dur*0.05, 5, self.rgb))
+                self.rectangles.add(self.note_rectangles[idx])
             self.on_rect = self.sched.post_at_tick(tick+dur, self._rectangle, idx+1)
 
     def _note_off(self):
@@ -141,6 +155,32 @@ class NoteVisSequencer(InstructionGroup):
         if self.on_note:
             self.synth.noteoff(self.channel, self.on_note)
             self.on_note = 0
+
+    def get_notes(self):
+        return self.notes
+
+    def set_note(self, new_pitch, note_idx):
+        (dur, pitch) = self.notes[note_idx]
+        self.notes[note_idx] = (dur, new_pitch)
+        self.note_rectangles[note_idx].set_ypos(self.height+new_pitch*1.5-50)
+        #MovingRectangle((Window.width-100, self.height+new_pitch*1.5-50), dur*0.05, 5, self.rgb)
+
+    def up_semitone(self, note_idx):
+        (dur, pitch) = self.notes[note_idx]
+        self.set_note(pitch+1, note_idx)
+
+    def down_semitone(self, note_idx):
+        (dur, pitch) = self.notes[note_idx]
+        self.set_note(pitch-1, note_idx)
+
+    def highlight(self, note_idx):
+        self.note_rectangles[note_idx].highlight()
+
+    def un_highlight(self, note_idx):
+        self.note_rectangles[note_idx].un_highlight()
+
+    def current_note_index(self):
+        return self.cur_idx
 
     def on_update(self):
         if self.playing:

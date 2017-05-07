@@ -11,6 +11,7 @@ from common.synth import *
 from common.clock import *
 from common.metro import *
 from common.noteseq import *
+from note_staff_seq import *
 from notevisseq import *
 from input.harmonycreator import *
 from kivy.graphics.instructions import InstructionGroup
@@ -144,10 +145,12 @@ class StaffNote(InstructionGroup):
         self.x_start = x_start
         self.stave = stave
         self.color = Color(color[0], color[1], color[2], .5)
+        self.rgb = self.color.rgb
         self.add(self.color)
         self.padding = .25*(x_end - x_start)
         self.fake_start = x_start + self.padding
         self.length = x_end - self.padding - self.fake_start
+        self.pitch = pitch
 
         self.size = (self.length, STAVE_SPACE_HEIGHT)
         self.pos = (self.fake_start, self.get_height(pitch, note_type))
@@ -159,12 +162,31 @@ class StaffNote(InstructionGroup):
         # return the height from the stave
         return self.stave.get_pitch_height(pitch, note_type)
 
-
     def change_alpha(self, on):
         if on:
             self.color.a = 1
         else:
             self.color.a = .5
+
+    #NEEDS ALTERING: you probably need to map it to C major or something, I didn't have enough time to look at what kind of pitch get_height takes
+    def set_note(self, new_pitch, note_type):
+        self.pitch = new_pitch
+        print(self.get_height(new_pitch, note_type))
+        self.rectangle.pos = (self.fake_start, self.get_height(new_pitch, note_type))
+
+    #NEEDS ALTERING
+    def up_semitone(self, note_type):
+        self.set_note(self.pitch+1, note_type)
+
+    #NEEDS ALTERING
+    def down_semitone(self, note_type):
+        self.set_note(self.pitch-1, note_type)
+
+    def highlight(self):
+        self.color.rgb = (1, 1, 1)
+
+    def un_highlight(self):
+        self.color.rgb = self.rgb
 
 
 class Barline(InstructionGroup):
@@ -181,6 +203,11 @@ class Barline(InstructionGroup):
 class MainWidget2(BaseWidget) :
     def __init__(self):
         super(MainWidget2, self).__init__()
+        self.info = Label(text = "text", valign='top', font_size='18sp',
+              pos=(Window.width * 0.8, Window.height * 0.4),
+              text_size=(Window.width, Window.height))
+        self.add_widget(self.info)
+
         somewhere = kSomewhereExample()
         lines = ["BASS", "TENOR", "ALTO", "SOPRANO", "solo"]
         note_sequences = [list(somewhere[key]) for key in lines]
@@ -202,24 +229,34 @@ class MainWidget2(BaseWidget) :
         self.canvas.add(self.top_stave)
         self.bar_length = (Window.width - NOTES_START)/4.0
         self.measure_time = 960
+
         self.playing = False
+        self.changing = False
+        self.change_idx = 0
+        self.change_note = 0
+
         x_pos = NOTES_START
         for i in range(4):
             self.canvas.add(Barline(self.top_stave, x_pos))
             self.canvas.add(Barline(self.bottom_stave, x_pos))
             x_pos += self.bar_length
 
-        self.colors = [(1, 1, 1), (0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0), (1, 0, 0)]
-        self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4), (0, 0), (0, 0)]
+        self.colors = [(0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0)]
+        self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4)]
+        self.parts = ["Bass", "Tenor", "Alto", "Soprano", "Melody"]
 
         self.num_channels = 5
-        self.note_sequences = [NoteSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i], notes = note_sequences[i], loop=True, note_cb=None, note_staffs=self.render_note_sequence(note_sequences[i], lines[i], self.colors[i])) for i in range(self.num_channels)]
+        self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i], part = self.parts[i], notes = note_sequences[i], loop=True, note_cb=None, note_staffs=self.render_note_sequence(note_sequences[i], lines[i], self.colors[i])) for i in range(self.num_channels)]
 
 
 
 
     def on_key_down(self, keycode, modifiers):
+        if keycode[1] == 'm':
+            self.metro.toggle()
+
         if keycode[1] == 'p':
+            self.changing = False
             self.playing = not self.playing
 
         if keycode[1] == 's':
@@ -228,7 +265,53 @@ class MainWidget2(BaseWidget) :
                 for ns in self.note_sequences:
                     ns.start()
 
+        if keycode[1] == 'c':
+            if not self.playing:
+                self.changing = not self.changing
+                if self.changing:
+                    self.change_note = self.note_sequences[self.change_idx].current_note_index()
+                    self.note_sequences[self.change_idx].highlight(self.change_note)
+                else:
+                    self.note_sequences[self.change_idx].un_highlight(self.change_note)
 
+        if keycode[1] == 'up':
+            if self.changing:
+                #move note up from change_idx
+                self.note_sequences[self.change_idx].up_semitone(self.change_note)
+
+        if keycode[1] == 'down':
+            if self.changing:
+                #move note down from change_idx
+                self.note_sequences[self.change_idx].down_semitone(self.change_note)
+
+        if keycode[1] == 'right':
+            if self.changing:
+                self.note_sequences[self.change_idx].un_highlight(self.change_note)
+                self.change_note += 1
+                self.note_sequences[self.change_idx].highlight(self.change_note)
+
+        if keycode[1] == 'left':
+            if self.changing:
+                self.note_sequences[self.change_idx].un_highlight(self.change_note)
+                self.change_note -= 1
+                self.note_sequences[self.change_idx].highlight(self.change_note)
+
+    #NEEDS ALTERING: Add something to keep track of all positions of current rectangles and whether touch intersects with them,
+    def on_touch_down(self, touch):
+        if self.changing:
+            (x, y) = touch.pos
+            self.note_sequences[self.change_idx].un_highlight(self.change_note)
+            self.change_idx = self.find_part(y)
+            self.change_note = self.note_sequences[self.change_idx].current_note_index()
+            self.note_sequences[self.change_idx].highlight(self.change_note)
+
+    #NEEDS ALTERING: same as on_touch_down, currently splits the screen into 5 parts vertically and you can change parts that way
+    def find_part(self, y_pos):
+        height = [(Window.height-40)/float(self.num_channels)*i+20 for i in range(self.num_channels)]
+        for i in range(self.num_channels-1):
+            if y_pos < height[i+1]:
+                return i
+        return self.num_channels-1
 
     def render_note_sequence(self, seq, note_type, color): # renders a 4 bar note sequence
         print seq
@@ -259,5 +342,12 @@ class MainWidget2(BaseWidget) :
         if self.playing:
             self.audio.on_update()
 
+        #self.info.text = "Playing: " + str(self.playing) +"\n"
+        #self.info.text += "Change Pitches: " + str(self.changing) + "\n"
+        self.info.text = ""
+        if self.changing:
+            self.info.text += "Changing: " + self.parts[self.change_idx]
+        if not self.changing:
+            self.note_sequences[self.change_idx].un_highlight(self.change_note)
 
 run(MainWidget2)
