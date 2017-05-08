@@ -67,7 +67,7 @@ class MainWidget(BaseWidget):
 
 		self.pitch_snap = PitchSnap()
 		self.last_pitch = Pitch(0, 1, 0, 0, None)
-		
+
 		# used for playback
 		self.song = []
 		self.note_song = NoteSong(TimeSig(4,4), self.tempo)
@@ -116,7 +116,12 @@ class MainWidget(BaseWidget):
 			self.info.text = "Welcome to reChordr\n"
 			self.info.text += "Press the spacebar to play your piece\n"
 			self.info.text += "Do something to edit\n"
-			self.info.text += "Press 'N' to go to the next step"			
+			self.info.text += "Press 'N' to go to the next step"
+
+		if self.playing:
+			self.audio.on_update()
+		if self.changing:
+			self.info.text += "Changing: " + self.parts[self.change_idx]
 
 
 	def on_key_down(self, keycode, modifiers):
@@ -184,10 +189,10 @@ class MainWidget(BaseWidget):
 				self.seq = NoteSequencer(self.sched, self.synth, 1, (0, 0), self.song, False)
 				print self.song
 
-		if self.current_mode == SOLO_EDIT_MODE:
-			pass
-			#stuff to edit the solo line
-		if self.current_mode == CHORD_GENERATION_MODE:
+		# if self.current_mode == SOLO_EDIT_MODE:
+		# 	pass
+		# 	#stuff to edit the solo line
+		if self.current_mode == CHORD_GENERATION_MODE or self.current_mode == SOLO_EDIT_MODE:
 
 			if keycode[1] == 'p':
 				self.changing = False
@@ -203,7 +208,12 @@ class MainWidget(BaseWidget):
 				if not self.playing:
 					self.changing = not self.changing
 				if self.changing:
-					self.change_note = self.note_sequences[self.change_idx].current_note_index()
+					if self.current_mode == SOLO_EDIT_MODE:
+						self.change_note = self.note_sequences[4].current_note_index()
+						self.change_note %= len(self.note_sequences[4].get_notes())
+					else:
+						self.change_note = self.note_sequences[self.change_idx].current_note_index()
+						self.change_note %= len(self.note_sequences[self.change_idx].get_notes())
 					self.note_sequences[self.change_idx].highlight(self.change_note)
 				else:
 					self.note_sequences[self.change_idx].un_highlight(self.change_note)
@@ -216,11 +226,12 @@ class MainWidget(BaseWidget):
 				#move note up from change_idx
 				self.note_sequences[self.change_idx].set_note(new_pitch, self.change_note)
 
-			if keycode[1] == 'down': # need to quantize to the notes in the scale
+
+			if keycode[1] == 'down':
 				if self.changing:
 					pitch = self.note_sequences[self.change_idx].get_cur_pitch(self.change_note)
 					new_pitch =  self.bottom_stave.get_pitch_down(pitch)
-					print pitch, new_pitch
+					#print "down", self.change_note, pitch, new_pitch
 					self.note_staffs[self.change_idx][self.change_note].set_note(new_pitch, self.note_types[self.change_idx] )
 					#move note up from change_idx
 					self.note_sequences[self.change_idx].set_note(new_pitch, self.change_note)
@@ -229,30 +240,31 @@ class MainWidget(BaseWidget):
 				if self.changing:
 					self.note_sequences[self.change_idx].un_highlight(self.change_note)
 					self.change_note += 1
+					self.change_note %= len(self.note_sequences[self.change_idx].get_notes())
 					self.note_sequences[self.change_idx].highlight(self.change_note)
 
 			if keycode[1] == 'left':
 				if self.changing:
 					self.note_sequences[self.change_idx].un_highlight(self.change_note)
 					self.change_note -= 1
+					self.change_note %= len(self.note_sequences[self.change_idx].get_notes())
 					self.note_sequences[self.change_idx].highlight(self.change_note)
 
-			#NEEDS ALTERING: Add something to keep track of all positions of current rectangles and whether touch intersects with them,
 			def on_touch_down(self, touch):
 				if self.changing:
-					(x, y) = touch.pos
+					c = self.find_part(touch.pos)
+				if c:
 					self.note_sequences[self.change_idx].un_highlight(self.change_note)
-					self.change_idx = self.find_part(y)
-					self.change_note = self.note_sequences[self.change_idx].current_note_index()
+					(self.change_idx, self.change_note) = c
 					self.note_sequences[self.change_idx].highlight(self.change_note)
-
 			#NEEDS ALTERING: same as on_touch_down, currently splits the screen into 5 parts vertically and you can change parts that way
 			def find_part(self, y_pos):
-				height = [(Window.height-40)/float(self.num_channels)*i+20 for i in range(self.num_channels)]
-				for i in range(self.num_channels-1):
-					if y_pos < height[i+1]:
-						return i
-					return self.num_channels-1
+				(x, y) = pos
+				corners = [r.rect_corners() for r in self.rectangles]
+				for ((x1, x2, y1, y2), part_idx, note_idx) in corners:
+					if x1 <= x and x <= x2 and y1 <= y and y <= y2:
+						return (part_idx, note_idx)
+				return None
 
 
 		if keycode[1] == 'n':
@@ -263,9 +275,48 @@ class MainWidget(BaseWidget):
 				self.metro.stop()
 				self.on_key_down([None, 'spacebar'], None)
 				self.current_mode = SOLO_EDIT_MODE
+				# render the entire stave but just change parts to be 4 960s
+				self.measure_length = 960
+
+				self.bottom_stave = TripleStave(10)
+				self.top_stave = TripleStave(Window.height/2)
+				self.canvas.add(self.bottom_stave)
+				self.canvas.add(self.top_stave)
+				x_pos = NOTES_START
+				self.bar_length = (Window.width - NOTES_START)/4.0
+				for i in range(4):
+						self.canvas.add(Barline(self.top_stave, x_pos))
+						self.canvas.add(Barline(self.bottom_stave, x_pos))
+						x_pos += self.bar_length
+
+				self.colors = [(0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0)]
+				self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4)]
+				self.parts = ["Bass", "Tenor", "Alto", "Soprano", "Solo"]
+				self.num_channels = 5
+
+				lines = ["BASS", "TENOR", "ALTO", "SOPRANO", "solo"]
+				single_note_seq = ((960, 0), (960, 0), (960, 0), (960, 0))
+				self.note_sequences = [single_note_seq for i in lines]
+				self.song = kSomewhere # TODO: remove this
+				self.note_sequences[4] = self.song
+				# do a sketchy thing to fix the pitch the song
+				self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i],
+														 part = self.parts[i], notes = self.note_sequences[i], loop=True, note_cb=None,
+														 note_staffs=self.render_note_sequence(self.note_sequences[i], lines[i],
+														 self.colors[i])) for i in range(self.num_channels)]
+
+				self.playing = False
+				self.changing = False
+				self.change_idx = 4
+				self.change_note = 0
+
+				self.rectangles = []
+
+
 			elif self.current_mode == SOLO_EDIT_MODE:
 				self.current_mode = CHORD_GENERATION_MODE
-				
+				self.canvas.clear()
+
 				self.measure_length = 960
 
 				self.bottom_stave = TripleStave(10)
@@ -317,6 +368,7 @@ class MainWidget(BaseWidget):
 			color = (.2, .5, .5)
 		else:
 			color = color
+		note_idx = 0
 		for note in seq:
 			length = note[0]
 			start = (self.time_passed/(960*4.0))*(Window.width - NOTES_START) + NOTES_START
@@ -324,9 +376,11 @@ class MainWidget(BaseWidget):
 
 			pitch = note[1]
 			note = StaffNote(pitch, self.top_stave, start, end, note_type, color)
+			self.rectangles.append(note)
 			self.note_staffs.append(note)
 			self.canvas.add(note)
 			self.time_passed += length
+			note_idx += 1
 		return self.note_staffs
 
 run(MainWidget)

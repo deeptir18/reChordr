@@ -105,6 +105,7 @@ class NoteStaffSequencer(object):
 
     def set_note(self, new_pitch, note_idx):
         (dur, pitch) = self.notes[note_idx]
+        self.notes[note_idx] = (dur, new_pitch)
         self.note_staffs[note_idx].set_note(new_pitch, self.part)
         #self.note_rectangles[note_idx].set_ypos(self.height+new_pitch*1.5-50)
 

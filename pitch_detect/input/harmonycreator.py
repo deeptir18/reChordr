@@ -259,7 +259,7 @@ class ChordPredictor(object):
 
         rand = random()
         row = row*np.array(chords)
-        
+
         index = np.argmax(abs(row))
         return mat_chords[index]
 
