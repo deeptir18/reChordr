@@ -100,6 +100,9 @@ class NoteStaffSequencer(object):
     def get_notes(self):
         return self.notes
 
+    def get_cur_pitch(self, note_idx):
+        return self.notes[note_idx][1]
+
     def set_note(self, new_pitch, note_idx):
         (dur, pitch) = self.notes[note_idx]
         self.note_staffs[note_idx].set_note(new_pitch, self.part)
