@@ -30,7 +30,7 @@ SHARP = "sharp"
 FLAT = "flat"
 NATURAL = "natural"
 NONE = "None"
-kSomewhere = ((960, 60), (960, 72), (480, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
+kSomewhere = [[960, 60], [960, 72], [480, 71], [240, 67], [240, 69], [480, 71], [480, 72]]
 kSomewhere_mod = ((960, 60), (480, 72), (960, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
 # TODO: hook this up to RHYTHMS and to note sequencers -> and try to display an entire song
 # then add movement with a nowbar so it plays through the note sequence
@@ -132,7 +132,6 @@ class TripleStave(InstructionGroup):
         bass.sort()
         # find the index of this pitch
         ind = bass.index(pitch)
-        print ind, len(bass)
         if ind <  len(bass) - 1:
             return bass[ind + 1]
         else:
@@ -178,6 +177,7 @@ class StaffNote(InstructionGroup):
         self.fake_start = x_start + self.padding
         self.length = x_end - self.padding - self.fake_start
         self.pitch = pitch
+        self.note_type = note_type
 
         self.part_idx = part_idx
         self.note_idx = note_idx
@@ -187,14 +187,13 @@ class StaffNote(InstructionGroup):
             self.pos = (0,0)
         else:
             self.size = (self.length, STAVE_SPACE_HEIGHT)
-            self.pos = (self.fake_start, self.get_height(pitch, note_type))
-        print self.size, self.pos
+            self.pos = (self.fake_start, self.get_height(pitch))
         self.rectangle = Rectangle(pos = self.pos, size=self.size)
         self.add(self.rectangle)
 
-    def get_height(self, pitch, note_type):
+    def get_height(self, pitch):
         # return the height from the stave
-        return self.stave.get_pitch_height(pitch, note_type)
+        return self.stave.get_pitch_height(pitch, self.note_type)
 
     def change_alpha(self, on):
         if on:
@@ -203,18 +202,18 @@ class StaffNote(InstructionGroup):
             self.color.a = .5
 
     #NEEDS ALTERING: you probably need to map it to C major or something, I didn't have enough time to look at what kind of pitch get_height takes
-    def set_note(self, new_pitch, note_type):
+    def set_note(self, new_pitch):
         self.pitch = new_pitch
-        self.pos = (self.fake_start, self.get_height(new_pitch, note_type))
-        self.rectangle.pos = (self.fake_start, self.get_height(new_pitch, note_type))
+        self.pos = (self.fake_start, self.get_height(new_pitch))
+        self.rectangle.pos = (self.fake_start, self.get_height(new_pitch))
 
     #NEEDS ALTERING
-    def up_semitone(self, note_type):
-        self.set_note(self.pitch+1, note_type)
+    def up_semitone(self):
+        self.set_note(self.pitch+1)
 
     #NEEDS ALTERING
-    def down_semitone(self, note_type):
-        self.set_note(self.pitch-1, note_type)
+    def down_semitone(self):
+        self.set_note(self.pitch-1)
 
     def highlight(self):
         self.color.rgb = (1, 1, 1)
@@ -224,9 +223,8 @@ class StaffNote(InstructionGroup):
         self.color.a = 0.5
 
     def rect_corners(self):
-        (x1, y1) = self.pos
-        (x2, y2) = self.size
-        (x2, y2) = (x2 + x1, y2 + y1)
+        (x1, y1) = self.rectangle.pos
+        (x2, y2) = (x1 + self.size[0], y1 + self.size[1])
         return ((x1, x2, y1, y2), self.part_idx, self.note_idx)
 
 

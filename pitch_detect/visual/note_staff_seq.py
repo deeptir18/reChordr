@@ -30,7 +30,7 @@ class NoteStaffSequencer(object):
         self.visualize=False
         if note_staffs != None:
             self.note_staffs = note_staffs
-            assert(len(self.note_staffs) == len(self.notes))
+            #assert(len(self.note_staffs) == len(self.notes))
             self.visualize = True
 
         self.cur_idx = 0
@@ -38,7 +38,6 @@ class NoteStaffSequencer(object):
     def start(self):
         if self.playing:
             return
-
         self.playing = True
         self.synth.program(self.channel, self.patch[0], self.patch[1])
 
@@ -106,7 +105,7 @@ class NoteStaffSequencer(object):
     def set_note(self, new_pitch, note_idx):
         (dur, pitch) = self.notes[note_idx]
         self.notes[note_idx] = (dur, new_pitch)
-        self.note_staffs[note_idx].set_note(new_pitch, self.part)
+        self.note_staffs[note_idx].set_note(new_pitch)
         #self.note_rectangles[note_idx].set_ypos(self.height+new_pitch*1.5-50)
 
     def up_semitone(self, note_idx):
