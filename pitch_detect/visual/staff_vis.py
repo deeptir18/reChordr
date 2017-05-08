@@ -164,7 +164,7 @@ class TripleStave(InstructionGroup):
                 return self.bass_stave.get_pitch_height(pitch)
 
 class StaffNote(InstructionGroup):
-    def __init__(self, pitch, stave, x_start, x_end, note_type, color):
+    def __init__(self, pitch, stave, x_start, x_end, note_type, color, part_idx, note_idx):
         super(StaffNote, self).__init__()
         # create a dictionary of midi pitches
         # calculate the height from the pitch
@@ -177,6 +177,10 @@ class StaffNote(InstructionGroup):
         self.fake_start = x_start + self.padding
         self.length = x_end - self.padding - self.fake_start
         self.pitch = pitch
+
+        self.part_idx = part_idx
+        self.note_idx = note_idx
+
         if self.pitch == 0:
             self.size = (0,0)
             self.pos = (0,0)
@@ -200,7 +204,7 @@ class StaffNote(InstructionGroup):
     #NEEDS ALTERING: you probably need to map it to C major or something, I didn't have enough time to look at what kind of pitch get_height takes
     def set_note(self, new_pitch, note_type):
         self.pitch = new_pitch
-        print(self.get_height(new_pitch, note_type))
+        self.pos = (self.fake_start, self.get_height(new_pitch, note_type))
         self.rectangle.pos = (self.fake_start, self.get_height(new_pitch, note_type))
 
     #NEEDS ALTERING
@@ -216,6 +220,13 @@ class StaffNote(InstructionGroup):
 
     def un_highlight(self):
         self.color.rgb = self.rgb
+        self.color.a = 0.5
+
+    def rect_corners(self):
+        (x1, y1) = self.pos
+        (x2, y2) = self.size
+        (x2, y2) = (x2 + x1, y2 + y1)
+        return ((x1, x2, y1, y2), self.part_idx, self.note_idx)
 
 
 class Barline(InstructionGroup):

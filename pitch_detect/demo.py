@@ -118,6 +118,11 @@ class MainWidget(BaseWidget):
 			self.info.text += "Do something to edit\n"
 			self.info.text += "Press 'N' to go to the next step"
 
+		if self.playing:
+			self.audio.on_update()
+		if self.changing:
+			self.info.text += "Changing: " + self.parts[self.change_idx]
+
 
 	def on_key_down(self, keycode, modifiers):
 		# adjust tempo
@@ -181,51 +186,60 @@ class MainWidget(BaseWidget):
 				if self.changing:
 					if self.current_mode == SOLO_EDIT_MODE:
 						self.change_note = self.note_sequences[4].current_note_index()
+						self.change_note %= len(self.note_sequences[4].get_notes())
 					else:
 						self.change_note = self.note_sequences[self.change_idx].current_note_index()
+						self.change_note %= len(self.note_sequences[self.change_idx].get_notes())
 					self.note_sequences[self.change_idx].highlight(self.change_note)
 				else:
 					self.note_sequences[self.change_idx].un_highlight(self.change_note)
 
 			if keycode[1] == 'up':
 				if self.changing:
+					pitch = self.note_sequences[self.change_idx].get_cur_pitch(self.change_note)
+					new_pitch =  self.bottom_stave.get_pitch_up(pitch)
+					self.note_staffs[self.change_idx][self.change_note].set_note(new_pitch, self.note_types[self.change_idx] )
 					#move note up from change_idx
-					self.note_sequences[self.change_idx].up_semitone(self.change_note)
+					self.note_sequences[self.change_idx].set_note(new_pitch, self.change_note)
 
 			if keycode[1] == 'down':
 				if self.changing:
-					#move note down from change_idx
-					self.note_sequences[self.change_idx].down_semitone(self.change_note)
+					pitch = self.note_sequences[self.change_idx].get_cur_pitch(self.change_note)
+					new_pitch =  self.bottom_stave.get_pitch_down(pitch)
+					#print "down", self.change_note, pitch, new_pitch
+					self.note_staffs[self.change_idx][self.change_note].set_note(new_pitch, self.note_types[self.change_idx] )
+					#move note up from change_idx
+					self.note_sequences[self.change_idx].set_note(new_pitch, self.change_note)
 
 			if keycode[1] == 'right':
 				if self.changing:
 					self.note_sequences[self.change_idx].un_highlight(self.change_note)
 					self.change_note += 1
+					self.change_note %= len(self.note_sequences[self.change_idx].get_notes())
 					self.note_sequences[self.change_idx].highlight(self.change_note)
 
 			if keycode[1] == 'left':
 				if self.changing:
 					self.note_sequences[self.change_idx].un_highlight(self.change_note)
 					self.change_note -= 1
+					self.change_note %= len(self.note_sequences[self.change_idx].get_notes())
 					self.note_sequences[self.change_idx].highlight(self.change_note)
 
-			#NEEDS ALTERING: Add something to keep track of all positions of current rectangles and whether touch intersects with them,
 			def on_touch_down(self, touch):
 				if self.changing:
-					(x, y) = touch.pos
+					c = self.find_part(touch.pos)
+				if c:
 					self.note_sequences[self.change_idx].un_highlight(self.change_note)
-					self.change_idx = self.find_part(y)
-					self.change_note = self.note_sequences[self.change_idx].current_note_index()
+					(self.change_idx, self.change_note) = c
 					self.note_sequences[self.change_idx].highlight(self.change_note)
-				if self.current_mode == SOLO_EDIT_MODE:
-					self.change_idx = 4
 			#NEEDS ALTERING: same as on_touch_down, currently splits the screen into 5 parts vertically and you can change parts that way
 			def find_part(self, y_pos):
-				height = [(Window.height-40)/float(self.num_channels)*i+20 for i in range(self.num_channels)]
-				for i in range(self.num_channels-1):
-					if y_pos < height[i+1]:
-						return i
-					return self.num_channels-1
+				(x, y) = pos
+				corners = [r.rect_corners() for r in self.rectangles]
+				for ((x1, x2, y1, y2), part_idx, note_idx) in corners:
+					if x1 <= x and x <= x2 and y1 <= y and y <= y2:
+						return (part_idx, note_idx)
+				return None
 
 
 		if keycode[1] == 'n':
@@ -268,6 +282,8 @@ class MainWidget(BaseWidget):
 				self.changing = False
 				self.change_idx = 4
 				self.change_note = 0
+
+				self.rectangles = []
 
 
 			elif self.current_mode == SOLO_EDIT_MODE:
@@ -317,6 +333,7 @@ class MainWidget(BaseWidget):
 			color = (.2, .5, .5)
 		else:
 			color = color
+		note_idx = 0
 		for note in seq:
 			length = note[0]
 			start = (self.time_passed/(960*4.0))*(Window.width - NOTES_START) + NOTES_START
@@ -324,9 +341,11 @@ class MainWidget(BaseWidget):
 
 			pitch = note[1]
 			note = StaffNote(pitch, self.top_stave, start, end, note_type, color)
+			self.rectangles.append(note)
 			self.note_staffs.append(note)
 			self.canvas.add(note)
 			self.time_passed += length
+			note_idx += 1
 		return self.note_staffs
 
 run(MainWidget)
