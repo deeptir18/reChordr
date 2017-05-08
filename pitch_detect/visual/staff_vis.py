@@ -112,6 +112,32 @@ class TripleStave(InstructionGroup):
         self.add(self.left_line)
         self.add(self.solo_line)
 
+    def get_pitch_down(self, pitch):
+        bass = self.get_bass_pitch_mappings().keys()
+        treble = self.get_treble_pitch_mappings().keys()
+        bass.extend(treble)
+        bass.sort()
+        # find the index of this pitch
+        ind = bass.index(pitch)
+        if ind > 0:
+            return bass[ind - 1]
+        else:
+            return pitch
+
+    def get_pitch_up(self, pitch):
+        bass = self.get_bass_pitch_mappings().keys()
+        treble = self.get_treble_pitch_mappings().keys()
+        bass.extend(treble)
+        bass.sort()
+        # find the index of this pitch
+        ind = bass.index(pitch)
+        print ind, len(bass)
+        if ind <  len(bass) - 1:
+            return bass[ind + 1]
+        else:
+            return pitch
+
+
     # everything is in C major for now
     def get_treble_pitch_mappings(self):
         # F is at 0 -> so E is at -.5 and G is at + .5
@@ -214,6 +240,8 @@ class MainWidget2(BaseWidget) :
 
         # now instantiate the music stuff
         self.bottom_stave = TripleStave(10)
+
+
         self.audio = Audio(2)
         self.tempo_map  = SimpleTempoMap(100)
 
@@ -244,12 +272,11 @@ class MainWidget2(BaseWidget) :
         self.colors = [(0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0)]
         self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4)]
         self.parts = ["Bass", "Tenor", "Alto", "Soprano", "Melody"]
-
         self.num_channels = 5
-        self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i], part = self.parts[i], notes = note_sequences[i], loop=True, note_cb=None, note_staffs=self.render_note_sequence(note_sequences[i], lines[i], self.colors[i])) for i in range(self.num_channels)]
+        self.note_staffs = [self.render_note_sequence(note_sequences[i], lines[i], self.colors[i]) for i in range(self.num_channels)]
 
-
-
+        self.note_types = [ACCOMPANY, ACCOMPANY, ACCOMPANY, ACCOMPANY, SOLO]
+        self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i], part = self.parts[i], notes = note_sequences[i], loop=True, note_cb=None, note_staffs=self.note_staffs[i]) for i in range(self.num_channels)]
 
     def on_key_down(self, keycode, modifiers):
         if keycode[1] == 'm':
@@ -276,13 +303,22 @@ class MainWidget2(BaseWidget) :
 
         if keycode[1] == 'up':
             if self.changing:
+                pitch = self.note_sequences[self.change_idx].get_cur_pitch(self.change_note)
+                new_pitch =  self.bottom_stave.get_pitch_up(pitch)
+                print pitch, new_pitch
+                self.note_staffs[self.change_idx][self.change_note].set_note(new_pitch, self.note_types[self.change_idx] )
                 #move note up from change_idx
-                self.note_sequences[self.change_idx].up_semitone(self.change_note)
+                self.note_sequences[self.change_idx].set_note(new_pitch, self.change_note)
 
-        if keycode[1] == 'down':
+        if keycode[1] == 'down': # need to quantize to the notes in the scale
             if self.changing:
-                #move note down from change_idx
-                self.note_sequences[self.change_idx].down_semitone(self.change_note)
+                pitch = self.note_sequences[self.change_idx].get_cur_pitch(self.change_note)
+                new_pitch =  self.bottom_stave.get_pitch_down(pitch)
+                print pitch, new_pitch
+                self.note_staffs[self.change_idx][self.change_note].set_note(new_pitch, self.note_types[self.change_idx] )
+                #move note up from change_idx
+                self.note_sequences[self.change_idx].set_note(new_pitch, self.change_note)
+
 
         if keycode[1] == 'right':
             if self.changing:
@@ -341,9 +377,6 @@ class MainWidget2(BaseWidget) :
     def on_update(self) :
         if self.playing:
             self.audio.on_update()
-
-        #self.info.text = "Playing: " + str(self.playing) +"\n"
-        #self.info.text += "Change Pitches: " + str(self.changing) + "\n"
         self.info.text = ""
         if self.changing:
             self.info.text += "Changing: " + self.parts[self.change_idx]
