@@ -142,12 +142,16 @@ class MainWidget(BaseWidget):
 			# turn sequencer on/off
 			if keycode[1] == '2':
 					self.on_key_down([None, 'spacebar'], None)
+					print self.song
 					self.song = trim_notes_for_playback(self.song)
+					print self.song
 					self.seq.notes = self.song
 					self.seq.toggle()
 
 			if keycode[1] == 'spacebar':
 					self.rhythm_detector.add_note()
+					print self.rhythm_detector.durations
+					print 'hi'
 					self.pitch_snap.snap_pitch()
 					if len(self.rhythm_detector.durations) > 0:
 						duration = self.rhythm_detector.durations[-1]
@@ -156,9 +160,29 @@ class MainWidget(BaseWidget):
 						pitch_obj = Pitch(abs_pitch[0], abs_pitch[1], rel_pitch[0], rel_pitch[1], self.last_pitch)
 						pitch = pitch_obj.get_best_guess()
 						self.last_pitch = pitch_obj
+						print pitch
 						noteinfo = NoteInfo(pitch_obj, duration)
 						self.note_song.add_to_solo_voice(noteinfo)
 						self.song.append((int(duration), int(pitch)))
+						print self.song
+
+			if keycode[1] == 's':
+				self.rhythm_detector = RhythmDetector(self.tempo, rel_rhythm)
+				self.sched = self.rhythm_detector.sched
+				# connect scheduler into audio system
+				self.metro_audio.set_generator(self.sched)
+				self.sched.set_generator(self.synth)
+
+				self.metro = Metronome(self.sched, self.synth)
+
+				self.pitch_snap = PitchSnap()
+				self.last_pitch = Pitch(0, 1, 0, 0, None)
+
+				# used for playback
+				self.song = []
+				self.note_song = NoteSong(TimeSig(4,4), self.tempo)
+				self.seq = NoteSequencer(self.sched, self.synth, 1, (0, 0), self.song, False)
+				print self.song
 
 		if self.current_mode == SOLO_EDIT_MODE:
 			pass
@@ -185,14 +209,21 @@ class MainWidget(BaseWidget):
 					self.note_sequences[self.change_idx].un_highlight(self.change_note)
 
 			if keycode[1] == 'up':
-				if self.changing:
-					#move note up from change_idx
-					self.note_sequences[self.change_idx].up_semitone(self.change_note)
+				pitch = self.note_sequences[self.change_idx].get_cur_pitch(self.change_note)
+				new_pitch =  self.bottom_stave.get_pitch_up(pitch)
+				print pitch, new_pitch
+				self.note_staffs[self.change_idx][self.change_note].set_note(new_pitch, self.note_types[self.change_idx] )
+				#move note up from change_idx
+				self.note_sequences[self.change_idx].set_note(new_pitch, self.change_note)
 
-			if keycode[1] == 'down':
+			if keycode[1] == 'down': # need to quantize to the notes in the scale
 				if self.changing:
-					#move note down from change_idx
-					self.note_sequences[self.change_idx].down_semitone(self.change_note)
+					pitch = self.note_sequences[self.change_idx].get_cur_pitch(self.change_note)
+					new_pitch =  self.bottom_stave.get_pitch_down(pitch)
+					print pitch, new_pitch
+					self.note_staffs[self.change_idx][self.change_note].set_note(new_pitch, self.note_types[self.change_idx] )
+					#move note up from change_idx
+					self.note_sequences[self.change_idx].set_note(new_pitch, self.change_note)
 
 			if keycode[1] == 'right':
 				if self.changing:
@@ -226,14 +257,17 @@ class MainWidget(BaseWidget):
 
 		if keycode[1] == 'n':
 			if self.current_mode == SET_TEMPO_MODE:
+				self.metro.stop()
 				self.current_mode = SOLO_TRANSCRIBE_MODE
 			elif self.current_mode == SOLO_TRANSCRIBE_MODE:
+				self.metro.stop()
 				self.on_key_down([None, 'spacebar'], None)
 				self.current_mode = SOLO_EDIT_MODE
 			elif self.current_mode == SOLO_EDIT_MODE:
 				self.current_mode = CHORD_GENERATION_MODE
 				
 				self.measure_length = 960
+				key = Key(60, major)
 
 				self.bottom_stave = TripleStave(10)
 				self.top_stave = TripleStave(Window.height/2)
@@ -250,14 +284,22 @@ class MainWidget(BaseWidget):
 				self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4)]
 				self.parts = ["Bass", "Tenor", "Alto", "Soprano", "Solo"]
 				self.num_channels = 5
+	
+				self.note_types = [ACCOMPANY, ACCOMPANY, ACCOMPANY, ACCOMPANY, SOLO]
+				self.synth.cc(5, 7, 120)
+				self.synth.cc(1, 7, 50)
+				self.synth.cc(2, 7, 50)
+				self.synth.cc(3, 7, 50)
+				self.synth.cc(4, 7, 50)
+				
 
 				lines = ["BASS", "TENOR", "ALTO", "SOPRANO", "solo"]
-				self.voicing_dict = get_chords_and_voicings(self.song, self.measure_length, key=None)
+				self.voicing_dict = get_chords_and_voicings(self.song, self.measure_length, key)
 				self.note_sequences = [list(self.voicing_dict[i]) for i in lines]
+				self.note_staffs = [self.render_note_sequence(self.note_sequences[i], lines[i], self.colors[i]) for i in range(self.num_channels)]
 				self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i],
-														 part = self.parts[i], notes = self.note_sequences[i], loop=True, note_cb=None,
-														 note_staffs=self.render_note_sequence(self.note_sequences[i], lines[i],
-														 self.colors[i])) for i in range(self.num_channels)]
+															 part = self.parts[i], notes = self.note_sequences[i], loop=True, note_cb=None, 
+															 note_staffs=self.note_staffs[i]) for i in range(self.num_channels)]
 
 				self.playing = False
 				self.changing = False

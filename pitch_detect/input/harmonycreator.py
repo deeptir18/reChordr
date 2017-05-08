@@ -166,29 +166,7 @@ def read_matrix(filepath):
     return start, transition, end
 
 
-matrix = read_matrix('../../data/pop.txt')
-
-
-
-# one_chord = Chord((1, 3, 5))
-# four_chord = Chord((4, 6, 1))
-# five_chord = Chord((5, 7, 2))
-# six_chord = Chord((6, 1, 3))
-# three_chord = Chord((3, 5, 7))
-# two_chord = Chord((2, 4, 6))
-# seven_chord = Chord((7, 2, 4))
-
-# maj_chords = set([one_chord, two_chord, three_chord, four_chord,
-#               five_chord, six_chord, seven_chord])
-
-# maj_edges = {three_chord: set([three_chord, six_chord]),
-#              six_chord: set([two_chord, four_chord, six_chord]),
-#              two_chord: set([two_chord, five_chord, seven_chord]),
-#              four_chord: set([four_chord, five_chord, seven_chord]),
-#              five_chord: set([one_chord, five_chord]),
-#              seven_chord: set([one_chord, three_chord, seven_chord]),
-#              one_chord: set([one_chord, two_chord, three_chord, four_chord,
-#                             five_chord, six_chord, seven_chord])}
+matrix = read_matrix('../data/pop.txt')
 
 
 
@@ -298,20 +276,27 @@ class ChordPredictor(object):
         return list(itertools.product(*chords))
 
     def get_best_chord_prog(self, chord_progs, matrix):
-        best_fit = -10000
-        best_chords = None
+        for chords in chord_progs:
+            print "hello"
+            for chord in chords:
+                print chord
+        print len(chord_progs)
+        fits = []
         fit = 0
         for chords in chord_progs:
             fit = matrix[0][mat_chords.index(chords[0])]
             for i in range(1, len(chords)):
                 fit += matrix[1][mat_chords.index(chords[i-1])][mat_chords.index(chords[i])]
             fit += matrix[2][mat_chords.index(chords[-1])]
-            if fit > best_fit:
-                best_fit = fit
-                best_chords = chords
-        return chords
+            fits.append(fit)
+        fits_original = fits[:]
+        fits.sort(reverse=True)
+        print fits
+        print fits_original
+        best_chords = [chord_progs[fits_original.index(fits[0])], chord_progs[fits_original.index(fits[1])],
+                       chord_progs[fits_original.index(fits[2])], chord_progs[fits_original.index(fits[3])]]
 
-
+        return best_chords
 
 
 class VoicePredictor(object):
@@ -459,12 +444,15 @@ def create_note_sequencers(voicings, length):
 
     return {soprano: sop, alto: alt, tenor: ten, bass: bas}
 
+somewhere = [(600, 60), (480, 72), (360, 71), (160, 67), (240, 69), (360, 71), (480, 72)]
+
 def get_chords_and_voicings(song, measure_length=960, key=None):
     chord_predictor = ChordPredictor(song, measure_length, key)
 
     chord_progs = chord_predictor.get_all_possible_chord_progs()
 
-    chords = x.get_best_chord_prog(chord_progs[0:100], matrix)
+    chords_4 = chord_predictor.get_best_chord_prog(chord_progs, matrix)
+    chords = chords_4[0]
 
     voicings = []
     for i in range(len(chords)):
