@@ -199,6 +199,7 @@ class ChordPredictor(object):
             return Key(key, harm_minor)
 
     # measure_length given in ticks
+    # TODO, make sure to pad song with enough rest so it doesn't go out of time
     def _get_measures(self, measure_length):
         measures = []
         current_measure = []
@@ -241,11 +242,14 @@ class ChordPredictor(object):
 
     def get_top_three(self, idx):
         chords = self.get_possible_chords(idx)
+        probs = []
+        for i in range(len(chords)):
+            probs.append(sum(matrix[1][:][i])*chords[i])
+        probs_old = probs[:]
+        probs = sorted(set(probs), reverse=True)
         top_three = []
-        while len(top_three) < 3:
-            i = randint(0, len(chords) - 1)
-            if chords[i] == 1:
-                top_three.append(mat_chords[i])
+        for i in range(3):
+            top_three.append(mat_chords[probs_old.index(probs[i])])
         return top_three
 
 
@@ -285,7 +289,7 @@ class ChordPredictor(object):
             fit += matrix[2][mat_chords.index(chords[-1])]
             fits.append(fit)
         fits_original = fits[:]
-        fits.sort(reverse=True)
+        fits = sorted(set(fits), reverse=True)
         best_chords = [chord_progs[fits_original.index(fits[0])], chord_progs[fits_original.index(fits[1])],
                        chord_progs[fits_original.index(fits[2])], chord_progs[fits_original.index(fits[3])]]
 
@@ -445,18 +449,21 @@ def get_chords_and_voicings(song, measure_length=960, key=None):
     chord_progs = chord_predictor.get_all_possible_chord_progs()
 
     chords_4 = chord_predictor.get_best_chord_prog(chord_progs, matrix)
-    chords = chords_4[0]
 
-    voicings = []
-    for i in range(len(chords)):
-        chord = chords[i]
-        if i == 0:
-            voice_predictor = VoicePredictor(chord, chord_predictor.key)
-            voicings.append(voice_predictor.get_initial_voicing())
-        else:
-            voice_predictor = VoicePredictor(chord, chord_predictor.key, voicings[i-1])
-            voicings.append(voice_predictor.get_best_voicing())
+    voicings_4 = []
+    for j in range(4):
+        voicings = []
+        chords = chords_4[j]
+        for i in range(len(chords)):
+            chord = chords[i]
+            if i == 0:
+                voice_predictor = VoicePredictor(chord, chord_predictor.key)
+                voicings.append(voice_predictor.get_initial_voicing())
+            else:
+                voice_predictor = VoicePredictor(chord, chord_predictor.key, voicings[i-1])
+                voicings.append(voice_predictor.get_best_voicing())
 
-    dictionary = create_note_sequencers(voicings, 960)
-    dictionary["solo"] = song
-    return dictionary
+        dictionary = create_note_sequencers(voicings, measure_length)
+        dictionary["solo"] = song
+        voicings_4.append(dictionary)
+    return voicings_4

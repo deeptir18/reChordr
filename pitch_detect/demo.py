@@ -145,7 +145,7 @@ class MainWidget(BaseWidget):
 		self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4)]
 		self.parts = ["Bass", "Tenor", "Alto", "Soprano", "Solo"]
 		self.num_channels = 5
-
+		self.hi = 0
 		# why are lines and self.parts both things?
 		lines = ["BASS", "TENOR", "ALTO", "SOPRANO", "solo"]
 		single_note_seq = [[960, 0], [960, 0], [960, 0], [960, 0]]
@@ -158,7 +158,7 @@ class MainWidget(BaseWidget):
 												 part = self.parts[i], notes = self.voicing_note_seqs[i], loop=True, note_cb=None,
 												 note_staffs=self.note_staffs[i]) for i in range(self.num_channels)]
 
-	def _init_chord_generation_mode(self):
+	def _init_chord_generation_mode(self, idx=0):
 		self.canvas.clear()
 		self.synth.cc(5, 7, 120)
 		self.synth.cc(1, 7, 50)
@@ -191,9 +191,9 @@ class MainWidget(BaseWidget):
 		self.parts = ["Bass", "Tenor", "Alto", "Soprano", "Solo"]
 		self.num_channels = 5
 		
-
 		lines = ["BASS", "TENOR", "ALTO", "SOPRANO", "solo"]
-		self.voicing_note_seqs = get_chords_and_voicings(self.song, self.measure_length)
+		self.voicing_options = get_chords_and_voicings(self.song, self.measure_length)
+		self.voicing_note_seqs = self.voicing_options[idx]
 		self.voicing_note_seqs = [list(self.voicing_note_seqs[i]) for i in lines]
 		self.note_staffs = [self.render_note_sequence(self.voicing_note_seqs[i], lines[i], i, self.colors[i]) for i in range(self.num_channels)]
 		self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i],
@@ -205,13 +205,16 @@ class MainWidget(BaseWidget):
 		self.time_passed = 0.
 		self.note_staffs = []
 		note_idx = 0
+		pitches = []
 		for note in seq:
 			length = note[0]
 			start = (self.time_passed/(960*4.0))*(Window.width - NOTES_START) + NOTES_START
 			end = start + length/(960*4.0)*(Window.width - NOTES_START)
 
 			pitch = note[1]
+			pitches.append(pitch)
 			note = StaffNote(pitch, self.top_stave, start, end, note_type, color, part_idx, note_idx)
+			# are these things not the same?
 			self.rectangles.append(note)
 			self.note_staffs.append(note)
 			self.canvas.add(note)
@@ -390,12 +393,17 @@ class MainWidget(BaseWidget):
 					self.change_note %= len(self.note_sequences[self.change_idx].get_notes())
 					self.note_sequences[self.change_idx].highlight(self.change_note)
 
+		if self.current_mode == CHORD_GENERATION_MODE:
+			o = lookup(keycode[1], '1234', '0123')
+			if o:
+				self._init_chord_generation_mode(int(o))
+
+
 	def on_touch_down(self, touch):
 		c = None
 		if self.current_mode == SOLO_EDIT_MODE or self.current_mode == CHORD_GENERATION_MODE:
 			if self.changing:
 				c = self.find_part(touch.pos)
-				print c
 			if c:
 				self.note_sequences[self.change_idx].un_highlight(self.change_note)
 				(self.change_idx, self.change_note) = c

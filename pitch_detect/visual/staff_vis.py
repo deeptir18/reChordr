@@ -30,7 +30,7 @@ SHARP = "sharp"
 FLAT = "flat"
 NATURAL = "natural"
 NONE = "None"
-kSomewhere = [[960, 60], [960, 72], [480, 71], [240, 67], [240, 69], [480, 71], [480, 72]]
+kSomewhere = [[960, 60], [960, 73], [480, 71], [240, 67], [240, 69], [480, 71], [480, 72]]
 kSomewhere_mod = ((960, 60), (480, 72), (960, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
 # TODO: hook this up to RHYTHMS and to note sequencers -> and try to display an entire song
 # then add movement with a nowbar so it plays through the note sequence
