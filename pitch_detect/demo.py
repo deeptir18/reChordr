@@ -267,7 +267,6 @@ class MainWidget(BaseWidget):
 				self.current_mode = CHORD_GENERATION_MODE
 				
 				self.measure_length = 960
-				key = Key(60, major)
 
 				self.bottom_stave = TripleStave(10)
 				self.top_stave = TripleStave(Window.height/2)
@@ -294,7 +293,7 @@ class MainWidget(BaseWidget):
 				
 
 				lines = ["BASS", "TENOR", "ALTO", "SOPRANO", "solo"]
-				self.voicing_dict = get_chords_and_voicings(self.song, self.measure_length, key)
+				self.voicing_dict = get_chords_and_voicings(self.song, self.measure_length)
 				self.note_sequences = [list(self.voicing_dict[i]) for i in lines]
 				self.note_staffs = [self.render_note_sequence(self.note_sequences[i], lines[i], self.colors[i]) for i in range(self.num_channels)]
 				self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i],
