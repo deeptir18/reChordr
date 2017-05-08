@@ -363,12 +363,6 @@ class ChordVoicing(object):
     def __str__(self):
         return "SOPRANO: {}, ALTO: {}, TENOR: {}, BASS: {}".format(self.soprano, self.alto, self.tenor, self.bass)
 
-kSomewhere = ((960, 60), (960, 72), (480, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
-allMyLoving = ((480*2, 0), (480, 69), (240, 68), (480*2, 66), (240, 0), (240, 68), (480, 69), (480, 71), (720, 73))
-riversAndRoads = ((480, 0), (240, 55), (480, 60), (240, 62), (480, 64), (240, 67),
-                  (480, 69), (240, 67), (360, 64), (120, 64), (240, 67),
-                  (480, 69), (240, 69), (480, 67), (240, 60), (240, 64), (480*3+240, 0))
-
 
 def create_note_sequencers(voicings, length):
     sop = ()
@@ -384,23 +378,21 @@ def create_note_sequencers(voicings, length):
 
     return {soprano: sop, alto: alt, tenor: ten, bass: bas}
 
-def kSomewhereExample():
-    c_maj = Key(60, major)
-    x = ChordPredictor(kSomewhere, 960, c_maj)
+def get_chords_and_voicings(song, measure_length=960, key=None):
+    chord_predictor = ChordPredictor(song, measure_length, key)
 
-    chords = x.get_one_option()
+    chords = chord_predictor.get_one_option()
 
     voicings = []
     for i in range(len(chords)):
         chord = chords[i]
-        print chord
         if i == 0:
-            v = VoicePredictor(chord, c_maj)
-            voicings.append(v.get_initial_voicing())
+            voice_predictor = VoicePredictor(chord, chord_predictor.key)
+            voicings.append(voice_predictor.get_initial_voicing())
         else:
-            v = VoicePredictor(chord, c_maj, voicings[i-1])
-            voicings.append(v.get_best_voicing())
+            voice_predictor = VoicePredictor(chord, chord_predictor.key, voicings[i-1])
+            voicings.append(voice_predictor.get_best_voicing())
 
-    dictionary = create_note_sequencers(voicings, 960)
-    dictionary["solo"] = kSomewhere
+    dictionary = create_note_sequencers(voicings, measure_length)
+    dictionary["solo"] = song
     return dictionary

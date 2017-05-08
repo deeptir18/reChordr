@@ -27,8 +27,8 @@ class NoteSequencer(object):
         self.on_note = 0
         self.playing = False
         self.visualize=False
-        if note_staffs != None:
-            self.note_staffs = note_staffs
+        self.note_staffs = note_staffs
+        if note_staffs:
             assert(len(self.note_staffs) == len(self.notes))
             self.visualize = True
 
@@ -61,7 +61,8 @@ class NoteSequencer(object):
 
     def _note_on(self, tick, idx):
         # terminate current note:
-        self.note_staffs[(idx-1)%len(self.notes)].change_alpha(False)
+        if self.note_staffs:
+            self.note_staffs[(idx-1)%len(self.notes)].change_alpha(False)
         self._note_off()
 
 

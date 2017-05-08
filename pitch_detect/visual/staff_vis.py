@@ -69,7 +69,7 @@ class Stave(InstructionGroup):
 
     def get_pitch_height(self, pitch):
         if pitch not in self.pitch_mapping:
-            return -1 # ERROR todo: fix this to be something proper
+            return -1. # ERROR todo: fix this to be something proper
         return self.bottom_offset + self.pitch_mapping[pitch]*STAVE_SPACE_HEIGHT
 
 
@@ -95,9 +95,9 @@ class TripleStave(InstructionGroup):
         solo_clef_png_start = (STAFF_LEFT_OFFSET, solo_clef_start - 10)
         solo_clef_png_size = (100, STAVE_HEIGHT)
 
-        self.bass_stave = Stave(self.get_bass_pitch_mappings(), bass_clef_start, "bass-clef.png", bass_clef_png_start, bass_clef_png_size)
-        self.treble_stave = Stave(self.get_treble_pitch_mappings(), treble_clef_start, "treble.png", treble_clef_png_start, treble_clef_png_size)
-        self.solo_stave = Stave(self.get_treble_pitch_mappings(), solo_clef_start, "treble.png", solo_clef_png_start, solo_clef_png_size)
+        self.bass_stave = Stave(self.get_bass_pitch_mappings(), bass_clef_start, "./visual/bass-clef.png", bass_clef_png_start, bass_clef_png_size)
+        self.treble_stave = Stave(self.get_treble_pitch_mappings(), treble_clef_start, "./visual/treble.png", treble_clef_png_start, treble_clef_png_size)
+        self.solo_stave = Stave(self.get_treble_pitch_mappings(), solo_clef_start, "./visual/treble.png", solo_clef_png_start, solo_clef_png_size)
 
         self.left_line = Line(points=(STAFF_LEFT_OFFSET, self.starting_height, STAFF_LEFT_OFFSET, treble_clef_start + STAVE_HEIGHT - STAVE_SPACE_HEIGHT), width=LINE_WIDTH)
         self.solo_line = Line(points=(STAFF_LEFT_OFFSET, solo_clef_start, STAFF_LEFT_OFFSET, solo_clef_start + STAVE_HEIGHT - STAVE_SPACE_HEIGHT), width=LINE_WIDTH)
@@ -126,10 +126,10 @@ class TripleStave(InstructionGroup):
         bass_mappings = self.get_bass_pitch_mappings()
         treble_mappings = self.get_treble_pitch_mappings()
         if pitch not in treble_mappings and pitch not in bass_mappings:
-            return "ERROR"
+            return -1. #this is not good but ERROR breaks the code
         if note_type == SOLO:
             if pitch not in treble_mappings:
-                return "ERROR"
+                return -1.
             return self.solo_stave.get_pitch_height(pitch)
         else:
             if pitch in treble_mappings:
@@ -200,6 +200,7 @@ class Barline(InstructionGroup):
         self.add(self.solo_barline)
         self.add(self.accompany_barline)
 
+'''
 class MainWidget2(BaseWidget) :
     def __init__(self):
         super(MainWidget2, self).__init__()
@@ -351,3 +352,4 @@ class MainWidget2(BaseWidget) :
             self.note_sequences[self.change_idx].un_highlight(self.change_note)
 
 run(MainWidget2)
+'''

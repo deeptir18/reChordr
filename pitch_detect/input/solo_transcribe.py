@@ -145,8 +145,16 @@ class PitchSnap(object):
     def on_update(self, pitch):
         self.pitches.append(pitch)
 
+def trim_notes_for_playback(notes):
+    i = len(notes)
+    while i >= 0:
+        i -= 1
+        if notes[i][1] != 0:
+            break
+    return notes[0:i+1]
 
 
+'''
 class MainWidget1(BaseWidget) :
     def __init__(self):
         super(MainWidget1, self).__init__()
@@ -300,6 +308,8 @@ class MainWidget1(BaseWidget) :
         write_wave_file(data, NUM_CHANNELS, 'recording.wav')
         self.song_snips.append(WaveArray(data, NUM_CHANNELS))
         self.input_buffers = []
+        
 
 # pass in which MainWidget to run as a command-line arg
 run(MainWidget1)
+'''
