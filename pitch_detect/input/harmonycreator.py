@@ -276,11 +276,6 @@ class ChordPredictor(object):
         return list(itertools.product(*chords))
 
     def get_best_chord_prog(self, chord_progs, matrix):
-        for chords in chord_progs:
-            print "hello"
-            for chord in chords:
-                print chord
-        print len(chord_progs)
         fits = []
         fit = 0
         for chords in chord_progs:
@@ -291,8 +286,6 @@ class ChordPredictor(object):
             fits.append(fit)
         fits_original = fits[:]
         fits.sort(reverse=True)
-        print fits
-        print fits_original
         best_chords = [chord_progs[fits_original.index(fits[0])], chord_progs[fits_original.index(fits[1])],
                        chord_progs[fits_original.index(fits[2])], chord_progs[fits_original.index(fits[3])]]
 
