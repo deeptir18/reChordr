@@ -166,7 +166,7 @@ def read_matrix(filepath):
     return start, transition, end
 
 
-matrix = read_matrix('../../data/pop.txt')
+matrix = read_matrix('../data/pop.txt')
 
 
 
@@ -281,7 +281,7 @@ class ChordPredictor(object):
 
         rand = random()
         row = row*np.array(chords)
-        
+
         index = np.argmax(abs(row))
         return mat_chords[index]
 
@@ -464,7 +464,7 @@ def get_chords_and_voicings(song, measure_length=960, key=None):
 
     chord_progs = chord_predictor.get_all_possible_chord_progs()
 
-    chords = x.get_best_chord_prog(chord_progs[0:100], matrix)
+    chords = chord_predictor.get_best_chord_prog(chord_progs[0:100], matrix)
 
     voicings = []
     for i in range(len(chords)):

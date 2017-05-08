@@ -177,9 +177,12 @@ class StaffNote(InstructionGroup):
         self.fake_start = x_start + self.padding
         self.length = x_end - self.padding - self.fake_start
         self.pitch = pitch
-
-        self.size = (self.length, STAVE_SPACE_HEIGHT)
-        self.pos = (self.fake_start, self.get_height(pitch, note_type))
+        if self.pitch == 0:
+            self.size = (0,0)
+            self.pos = (0,0)
+        else:
+            self.size = (self.length, STAVE_SPACE_HEIGHT)
+            self.pos = (self.fake_start, self.get_height(pitch, note_type))
         print self.size, self.pos
         self.rectangle = Rectangle(pos = self.pos, size=self.size)
         self.add(self.rectangle)

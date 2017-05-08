@@ -67,7 +67,7 @@ class MainWidget(BaseWidget):
 
 		self.pitch_snap = PitchSnap()
 		self.last_pitch = Pitch(0, 1, 0, 0, None)
-		
+
 		# used for playback
 		self.song = []
 		self.note_song = NoteSong(TimeSig(4,4), self.tempo)
@@ -116,7 +116,7 @@ class MainWidget(BaseWidget):
 			self.info.text = "Welcome to reChordr\n"
 			self.info.text += "Press the spacebar to play your piece\n"
 			self.info.text += "Do something to edit\n"
-			self.info.text += "Press 'N' to go to the next step"			
+			self.info.text += "Press 'N' to go to the next step"
 
 
 	def on_key_down(self, keycode, modifiers):
@@ -160,10 +160,10 @@ class MainWidget(BaseWidget):
 						self.note_song.add_to_solo_voice(noteinfo)
 						self.song.append((int(duration), int(pitch)))
 
-		if self.current_mode == SOLO_EDIT_MODE:
-			pass
-			#stuff to edit the solo line
-		if self.current_mode == CHORD_GENERATION_MODE:
+		# if self.current_mode == SOLO_EDIT_MODE:
+		# 	pass
+		# 	#stuff to edit the solo line
+		if self.current_mode == CHORD_GENERATION_MODE or self.current_mode == SOLO_EDIT_MODE:
 
 			if keycode[1] == 'p':
 				self.changing = False
@@ -179,7 +179,10 @@ class MainWidget(BaseWidget):
 				if not self.playing:
 					self.changing = not self.changing
 				if self.changing:
-					self.change_note = self.note_sequences[self.change_idx].current_note_index()
+					if self.current_mode == SOLO_EDIT_MODE:
+						self.change_note = self.note_sequences[4].current_note_index()
+					else:
+						self.change_note = self.note_sequences[self.change_idx].current_note_index()
 					self.note_sequences[self.change_idx].highlight(self.change_note)
 				else:
 					self.note_sequences[self.change_idx].un_highlight(self.change_note)
@@ -214,7 +217,8 @@ class MainWidget(BaseWidget):
 					self.change_idx = self.find_part(y)
 					self.change_note = self.note_sequences[self.change_idx].current_note_index()
 					self.note_sequences[self.change_idx].highlight(self.change_note)
-
+				if self.current_mode == SOLO_EDIT_MODE:
+					self.change_idx = 4
 			#NEEDS ALTERING: same as on_touch_down, currently splits the screen into 5 parts vertically and you can change parts that way
 			def find_part(self, y_pos):
 				height = [(Window.height-40)/float(self.num_channels)*i+20 for i in range(self.num_channels)]
@@ -230,9 +234,46 @@ class MainWidget(BaseWidget):
 			elif self.current_mode == SOLO_TRANSCRIBE_MODE:
 				self.on_key_down([None, 'spacebar'], None)
 				self.current_mode = SOLO_EDIT_MODE
+				# render the entire stave but just change parts to be 4 960s
+				self.measure_length = 960
+
+				self.bottom_stave = TripleStave(10)
+				self.top_stave = TripleStave(Window.height/2)
+				self.canvas.add(self.bottom_stave)
+				self.canvas.add(self.top_stave)
+				x_pos = NOTES_START
+				self.bar_length = (Window.width - NOTES_START)/4.0
+				for i in range(4):
+						self.canvas.add(Barline(self.top_stave, x_pos))
+						self.canvas.add(Barline(self.bottom_stave, x_pos))
+						x_pos += self.bar_length
+
+				self.colors = [(0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0)]
+				self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4)]
+				self.parts = ["Bass", "Tenor", "Alto", "Soprano", "Solo"]
+				self.num_channels = 5
+
+				lines = ["BASS", "TENOR", "ALTO", "SOPRANO", "solo"]
+				single_note_seq = ((960, 0), (960, 0), (960, 0), (960, 0))
+				self.note_sequences = [single_note_seq for i in lines]
+				self.song = kSomewhere # TODO: remove this
+				self.note_sequences[4] = self.song
+				# do a sketchy thing to fix the pitch the song
+				self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i],
+														 part = self.parts[i], notes = self.note_sequences[i], loop=True, note_cb=None,
+														 note_staffs=self.render_note_sequence(self.note_sequences[i], lines[i],
+														 self.colors[i])) for i in range(self.num_channels)]
+
+				self.playing = False
+				self.changing = False
+				self.change_idx = 4
+				self.change_note = 0
+
+
 			elif self.current_mode == SOLO_EDIT_MODE:
 				self.current_mode = CHORD_GENERATION_MODE
-				
+				self.canvas.clear()
+
 				self.measure_length = 960
 
 				self.bottom_stave = TripleStave(10)
