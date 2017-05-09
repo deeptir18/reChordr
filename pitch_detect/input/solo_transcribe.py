@@ -1,44 +1,15 @@
-#####################################################################
-#
-# solo_transcribe.py
-#
-# Copyright (c) 2017, Eran Egozy
-#
-# Released under the MIT License (http://opensource.org/licenses/MIT)
-#
-#####################################################################
-
-# contains example code for some simple input (microphone) processing.
-# Requires aubio (pip install aubio).
-
 import sys
 sys.path.append('..')
 
-from common.core import *
-from common.audio import *
-from common.writer import *
-from common.mixer import *
-from common.gfxutil import *
-from common.wavegen import *
-from common.synth import *
 from common.clock import *
-from common.metro import *
-from common.noteseq import *
-from common.buffers import *
-from common.pitchdetect import *
 from math import *
 from noteclass import *
 
-from kivy.graphics.instructions import InstructionGroup
-from kivy.graphics import Color, Ellipse, Rectangle, Line
-from kivy.graphics import PushMatrix, PopMatrix, Translate, Scale, Rotate
-
-from random import randint
-import aubio
 from bisect import bisect_left
 import numpy as np
 
 
+#Maybe use to give rhythm confidence?
 #rel_rhythm = [2.5, 2.5, 2.5, 3.7, 4.5, 4.5, 7.7, 7.7, 8.3, 9.5, 9.5, 9.5]
 #beat_rhythm = [2.5, 2.5, 2.5, 3.7, 4.5, 4.5, 7.7, 7.7, 8.5, 9.7, 9.7, 9.7]
 

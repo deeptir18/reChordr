@@ -1,50 +1,13 @@
 
 import sys
 sys.path.append('..')
-from common.core import *
-from common.gfxutil import *
-from common.audio import *
-from common.writer import *
-from common.mixer import *
-from common.wavegen import *
-from common.synth import *
-from common.clock import *
-from common.metro import *
-from common.noteseq import *
-from note_staff_seq import *
-from notevisseq import *
-from input.harmonycreator import *
+from common.constants import *
 from kivy.graphics.instructions import InstructionGroup
-from kivy.graphics import Color, Ellipse, Rectangle, Line
-from kivy.graphics import PushMatrix, PopMatrix, Translate, Scale, Rotate
-from kivy.core.window import Window
-from kivy.clock import Clock as kivyClock
-from kivy.uix.label import Label
-from kivy.graphics.instructions import InstructionGroup
-from kivy.graphics import Color, Ellipse, Rectangle
-from kivy.graphics import PushMatrix, PopMatrix, Translate, Scale, Rotate
+from kivy.graphics import Color, Rectangle, Line
 
-from random import random, randint
-import numpy as np
-SHARP = "sharp"
-FLAT = "flat"
-NATURAL = "natural"
-NONE = "None"
-kSomewhere = [[960, 60], [960, 74], [480, 71], [240, 67], [240, 69], [480, 71], [480, 72]]
-kSomewhere_mod = ((960, 60), (480, 72), (960, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
 # TODO: hook this up to RHYTHMS and to note sequencers -> and try to display an entire song
 # then add movement with a nowbar so it plays through the note sequence
 # so make the note sequencer OPTIONALLY take in an array of these stupid staff note
-
-
-
-STAFF_LEFT_OFFSET = 20 # offset from the left side
-STAVE_SPACE_HEIGHT = 15 # height of a single space
-STAVE_HEIGHT = STAVE_SPACE_HEIGHT*5
-LINE_WIDTH = 1.2
-SOLO = "solo"
-ACCOMPANY = "accompany"
-NOTES_START = 150
 
 # draws a single Stave at the given starting position, with the right clef png, with the given pitch mapping
 # pitch mapping maps pitches to heights relative to how many "clef spaces" they are away
@@ -163,77 +126,6 @@ class TripleStave(InstructionGroup):
             else:
                 return self.bass_stave.get_pitch_height(pitch)
 
-class StaffNote(InstructionGroup):
-    def __init__(self, pitch, stave, x_start, x_end, note_type, color, part_idx, note_idx):
-        super(StaffNote, self).__init__()
-        # create a dictionary of midi pitches
-        # calculate the height from the pitch
-        self.x_start = x_start
-        self.stave = stave
-        self.color = Color(color[0], color[1], color[2], .5)
-        self.rgb = self.color.rgb
-        self.add(self.color)
-        self.padding = .25*(x_end - x_start)
-        self.fake_start = x_start + self.padding
-        self.length = x_end - self.padding - self.fake_start
-        self.pitch = pitch
-        self.note_type = note_type
-
-        self.part_idx = part_idx
-        self.note_idx = note_idx
-
-        if self.pitch == 0:
-            self.size = (0,0)
-            self.pos = (0,0)
-        else:
-            self.size = (self.length, STAVE_SPACE_HEIGHT)
-            self.pos = (self.fake_start, self.get_height(pitch))
-        self.rectangle = Rectangle(pos = self.pos, size=self.size)
-        self.add(self.rectangle)
-
-    def get_height(self, pitch):
-        # return the height from the stave
-        return self.stave.get_pitch_height(pitch, self.note_type)
-
-    def change_alpha(self, on):
-        if on:
-            self.color.a = 1
-        else:
-            self.color.a = .5
-
-    #NEEDS ALTERING: you probably need to map it to C major or something, I didn't have enough time to look at what kind of pitch get_height takes
-    def set_note(self, new_pitch):
-        self.pitch = new_pitch
-        self.pos = (self.fake_start, self.get_height(new_pitch))
-        self.rectangle.pos = (self.fake_start, self.get_height(new_pitch))
-
-    #NEEDS ALTERING
-    def up_semitone(self):
-        self.set_note(self.pitch+1)
-
-    #NEEDS ALTERING
-    def down_semitone(self):
-        self.set_note(self.pitch-1)
-
-    def highlight(self):
-        self.color.rgb = (1, 1, 1)
-
-    def un_highlight(self):
-        self.color.rgb = self.rgb
-        self.color.a = 0.5
-
-    def rect_corners(self):
-        (x1, y1) = self.rectangle.pos
-        (x2, y2) = (x1 + self.size[0], y1 + self.size[1])
-        return (x1, x2, y1, y2)
-
-    def intersects(self, pos):
-        (x, y) = pos
-        (x1, x2, y1, y2) = self.rect_corners()
-        return x1 <= x and x <= x2 and y1 <= y and y <= y2
-
-
-
 class Barline(InstructionGroup):
     def __init__(self, stave, x_pos):
         super(Barline, self).__init__()
@@ -257,14 +149,80 @@ def get_all_barlines(staves):
         x_pos += bar_length
     return all_barlines
 
-def get_staff_notes(seq, note_type, part_idx, color, stave): # renders a 4 bar note sequence
+class StaffNote(InstructionGroup):
+    def __init__(self, pitch, stave, x_start, x_end, note_type, color, part_idx, note_idx):
+        super(StaffNote, self).__init__()
+        # create a dictionary of midi pitches
+        # calculate the height from the pitch
+        self.pitch = pitch
+        self.stave = stave
+        padding = .25*(x_end - x_start)
+        self.x_start = x_start + padding
+        self.color = Color(color[0], color[1], color[2], .5)
+        self.default_color = color
+        self.add(self.color)
+        
+        self.length = x_end - padding - self.x_start
+        
+        self.note_type = note_type
+
+        self.part_idx = part_idx
+        self.note_idx = note_idx
+
+        if self.pitch == 0: # rests
+            self.size = (0,0)
+            self.pos = (0,0)
+        else:
+            self.size = (self.length, STAVE_SPACE_HEIGHT)
+            self.pos = (self.x_start, self.get_height(pitch))
+        self.rectangle = Rectangle(pos = self.pos, size=self.size)
+        self.add(self.rectangle)
+
+    def get_height(self, pitch):
+        # return the height from the stave
+        return self.stave.get_pitch_height(pitch, self.note_type)
+
+    def set_active(self, active):
+        if active:
+            self.color.a = 1
+        else:
+            self.color.a = .5
+
+    #NEEDS ALTERING: you probably need to map it to C major or something, I didn't have enough time to look at what kind of pitch get_height takes
+    def set_pitch(self, new_pitch):
+        self.pitch = new_pitch
+        self.pos = (self.x_start, self.get_height(new_pitch))
+        self.rectangle.pos = (self.x_start, self.get_height(new_pitch))
+
+    # currently not using this
+    def move_pitch(self, semitones_up):
+        self.set_pitch(self.pitch + semitones_up)
+
+    def set_highlight(self, on):
+        if on:
+            self.color.rgb = (1, 1, 1)
+        else:
+            self.color.rgb = self.default_color
+            self.set_active(False)
+
+    def get_corners(self):
+        (x1, y1) = self.rectangle.pos
+        (x2, y2) = (x1 + self.size[0], y1 + self.size[1])
+        return (x1, x2, y1, y2)
+
+    def intersects(self, pos):
+        (x, y) = pos
+        (x1, x2, y1, y2) = self.get_corners()
+        return x1 <= x and x <= x2 and y1 <= y and y <= y2
+
+def get_staff_notes(notes, note_type, part_idx, color, stave): # renders a 4 bar note sequence
     # this was previously self.time_passed but is not used anywhere else
     time_passed = 0.
     staff_notes = []
     note_idx = 0
     # this line is not used anywhere
     #pitches = []
-    for note in seq:
+    for note in notes:
         length = note[0]
         start = (time_passed/(960*4.0))*(Window.width - NOTES_START) + NOTES_START
         end = start + length/(960*4.0)*(Window.width - NOTES_START)
@@ -276,3 +234,8 @@ def get_staff_notes(seq, note_type, part_idx, color, stave): # renders a 4 bar n
         note_idx += 1
     return staff_notes
 
+def highlight_staff_note(staff_note_part, idx):
+    prev_staff_note = staff_note_part[idx - 1]
+    prev_staff_note.set_active(False)
+    staff_note = staff_note_part[idx]
+    staff_note.set_active(True)

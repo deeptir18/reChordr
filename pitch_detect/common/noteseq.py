@@ -13,24 +13,20 @@ from common.clock import kTicksPerQuarter, quantize_tick_up
 class NoteSequencer(object):
     """Plays a single Sequence of notes. The sequence is a python list containing
     notes. Each note is (dur, pitch)."""
-    def __init__(self, sched, synth, channel, patch, notes, loop=True, note_cb=None, note_staffs=None):
+    def __init__(self, sched, synth, channel, patch, notes, loop=True, note_cb=None, cb_args=None):
         super(NoteSequencer, self).__init__()
         self.sched = sched
         self.synth = synth
         self.channel = channel
         self.patch = patch
 
-        self.note_cb = note_cb
         self.notes = notes
         self.loop = loop
         self.on_cmd = None
         self.on_note = 0
         self.playing = False
-        self.visualize=False
-        self.note_staffs = note_staffs
-        if note_staffs:
-            assert(len(self.note_staffs) == len(self.notes))
-            self.visualize = True
+        self.note_cb = note_cb
+        self.cb_args = cb_args
 
     def start(self):
         if self.playing:
@@ -61,10 +57,7 @@ class NoteSequencer(object):
 
     def _note_on(self, tick, idx):
         # terminate current note:
-        if self.note_staffs:
-            self.note_staffs[(idx-1)%len(self.notes)].change_alpha(False)
         self._note_off()
-
 
         # if looping, go back to beginning
         if self.loop and idx >= len(self.notes):
@@ -74,17 +67,13 @@ class NoteSequencer(object):
         if idx < len(self.notes):
             dur, pitch = self.notes[idx]
             if pitch: # pitch 0 is a rest
-            # visualize the note staffs if this is an option:
-                if self.visualize:
-                    staff_note = self.note_staffs[idx]
-                    staff_note.change_alpha(True)
                 self.synth.noteon(self.channel, pitch, 60)
                 self.on_note = pitch
 
             # schedule the next note:
             self.on_cmd = self.sched.post_at_tick(tick+dur, self._note_on, idx+1)
             if self.note_cb:
-                self.note_cb(idx)
+                self.note_cb(self.cb_args, idx)
 
 
     def _note_off(self):
@@ -92,3 +81,9 @@ class NoteSequencer(object):
         if self.on_note:
             self.synth.noteoff(self.channel, self.on_note)
             self.on_note = 0
+
+    def set_pitch(self, new_pitch, idx):
+        if idx >= 0 and idx < len(self.notes):
+            (dur, pitch) = self.notes[idx]
+            self.notes[idx] = (dur, new_pitch)
+

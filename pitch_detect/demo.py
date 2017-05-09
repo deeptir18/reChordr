@@ -2,13 +2,11 @@ import sys
 import itertools
 sys.path.append('..')
 
-# we should go through these and figure out what we need
 from common.core import *
 from common.audio import *
 from common.writer import *
 from common.mixer import *
 from common.gfxutil import *
-from common.wavegen import *
 from common.synth import *
 from common.clock import *
 from common.metro import *
@@ -17,17 +15,12 @@ from common.buffers import *
 from common.pitchdetect import *
 from common.constants import *
 from input.solo_transcribe import *
+from input.harmonycreator import *
 from visual.staff_vis import *
 from math import *
 
 from kivy.graphics.instructions import InstructionGroup
-from kivy.graphics import Color, Ellipse, Rectangle, Line
-from kivy.graphics import PushMatrix, PopMatrix, Translate, Scale, Rotate
-
-from random import randint
-import aubio
-from bisect import bisect_left
-import numpy as np
+from kivy.graphics import Color, Rectangle, Line
 
 class MainWidget(BaseWidget):
 	def __init__(self):
@@ -156,14 +149,15 @@ class MainWidget(BaseWidget):
 		voicing_note_seqs[4] = self.song
 		# do a sketchy thing to fix the pitch the song
 		# array of SATB + solo line, each as a collection of StaffNote objects
-		self.note_staffs = [get_staff_notes(voicing_note_seqs[i], PARTS[i], i, COLORS[i], self.top_stave) for i in range(NUM_PARTS)]
-		for part in self.note_staffs:
+		self.staff_note_parts = [get_staff_notes(voicing_note_seqs[i], PARTS[i], i, COLORS[i], self.top_stave) for i in range(NUM_PARTS)]
+		for part in self.staff_note_parts:
 			for staff_note in part:
 				self.canvas.add(staff_note)
-		# array of SATB + solo line, each a NoteStaffSequencer object
-		self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=PART_CHANNELS[i], patch = PATCHES[i],
-												 part = PARTS[i], notes = voicing_note_seqs[i], loop=True, note_cb=None,
-												 note_staffs=self.note_staffs[i]) for i in range(NUM_PARTS)]
+
+		# array of SATB + solo line, each a NoteSequencer object
+		self.note_sequencers = [NoteSequencer(self.sched, self.synth, channel=PART_CHANNELS[i], patch = PATCHES[i],
+												 								 notes = voicing_note_seqs[i], loop=True, note_cb=highlight_staff_note,
+												 								 cb_args = self.staff_note_parts[i]) for i in range(NUM_PARTS)]
 
 	def _init_chord_generation_mode(self, idx=0):
 		self.canvas.clear()
@@ -194,18 +188,20 @@ class MainWidget(BaseWidget):
 		# array of SATB + solo line, each in (dur, midi) form
 		voicing_note_seqs = self.voicing_options[idx]
 		voicing_note_seqs = [list(voicing_note_seqs[i]) for i in PARTS]
-		self.note_staffs = [get_staff_notes(voicing_note_seqs[i], PARTS[i], i, COLORS[i], self.top_stave) for i in range(NUM_PARTS)]
-		for part in self.note_staffs:
+		# array of SATB + solo line, each as a collection of StaffNote objects
+		self.staff_note_parts = [get_staff_notes(voicing_note_seqs[i], PARTS[i], i, COLORS[i], self.top_stave) for i in range(NUM_PARTS)]
+		for part in self.staff_note_parts:
 			for staff_note in part:
 				self.canvas.add(staff_note)
-		# array of SATB + solo line, each a NoteStaffSequencer object
-		self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=PART_CHANNELS[i], patch = PATCHES[i],
-													 part = PARTS[i], notes = voicing_note_seqs[i], loop=True, note_cb=None, 
-													 note_staffs=self.note_staffs[i]) for i in range(NUM_PARTS)]
+
+		# array of SATB + solo line, each a NoteSequencer object
+		self.note_sequencers = [NoteSequencer(self.sched, self.synth, channel=PART_CHANNELS[i], patch = PATCHES[i],
+												 								 notes = voicing_note_seqs[i], loop=True, note_cb=highlight_staff_note,
+												 								 cb_args = self.staff_note_parts[i]) for i in range(NUM_PARTS)]
 
 	# returns which StaffNote was clicked
 	def find_part(self, pos):
-		for part in self.note_staffs:
+		for part in self.staff_note_parts:
 			for staff_note in part:
 				if staff_note.intersects(pos):
 					return (staff_note.part_idx, staff_note.note_idx)
@@ -305,14 +301,14 @@ class MainWidget(BaseWidget):
 			if keycode[1] == 'p':
 				self.changing = False
 				self.playing = not self.playing
-				for ns in self.note_sequences:
+				for ns in self.note_sequencers:
 					ns.toggle()
 
 			# start playback
 			if keycode[1] == 's':
 				if not self.playing:
 					self.playing = True
-					for ns in self.note_sequences:
+					for ns in self.note_sequencers:
 						ns.start()
 
 			# change notes
@@ -320,48 +316,47 @@ class MainWidget(BaseWidget):
 				if not self.playing:
 					self.changing = not self.changing
 				if self.changing:
-					if self.current_mode == SOLO_EDIT_MODE:
-						self.change_note = self.note_sequences[4].current_note_index()
-						self.change_note %= len(self.note_sequences[4].get_notes())
-					else:
-						self.change_note = self.note_sequences[self.change_idx].current_note_index()
-						self.change_note %= len(self.note_sequences[self.change_idx].get_notes())
-					self.note_sequences[self.change_idx].highlight(self.change_note)
+					# if self.current_mode == SOLO_EDIT_MODE:
+						# fix later
+					self.change_note = 0
+						# self.change_note = self.note_sequences[4]
+						# self.change_note %= len(self.note_sequences[4].note_sequencer.notes)
+					# else:
+					# 	self.change_note = self.note_sequences[self.change_idx].current_note_index()
+					# 	self.change_note %= len(self.note_sequences[self.change_idx].get_notes())
+					self.staff_note_parts[self.change_idx][self.change_note].set_highlight(True)
 				else:
-					self.note_sequences[self.change_idx].un_highlight(self.change_note)
+					self.staff_note_parts[self.change_idx][self.change_note].set_highlight(False)
 
 			# change note pitch up or down
 			if keycode[1] == 'up':
-				pitch = self.note_sequences[self.change_idx].get_cur_pitch(self.change_note)
-				# this seems like something that could be accomplished with the Key class
-				new_pitch =  self.bottom_stave.get_pitch_up(pitch)
-				self.note_staffs[self.change_idx][self.change_note].set_note(new_pitch)
-				#move note up from change_idx
-				self.note_sequences[self.change_idx].set_note(new_pitch, self.change_note)
+				if self.changing:
+					staff_note = self.staff_note_parts[self.change_idx][self.change_note]
+					pitch = staff_note.pitch
+					# this seems like something that could be accomplished with the Key class
+					new_pitch =  staff_note.stave.get_pitch_up(pitch)
+					staff_note.set_pitch(new_pitch)
+					#move note up from change_idx
+					self.note_sequencers[self.change_idx].set_pitch(new_pitch, self.change_note)
 
 			if keycode[1] == 'down':
 				if self.changing:
-					pitch = self.note_sequences[self.change_idx].get_cur_pitch(self.change_note)
-					new_pitch =  self.bottom_stave.get_pitch_down(pitch)
-					#print "down", self.change_note, pitch, new_pitch
-					self.note_staffs[self.change_idx][self.change_note].set_note(new_pitch)
+					staff_note = self.staff_note_parts[self.change_idx][self.change_note]
+					pitch = staff_note.pitch
+					# this seems like something that could be accomplished with the Key class
+					new_pitch =  staff_note.stave.get_pitch_down(pitch)
+					staff_note.set_pitch(new_pitch)
 					#move note up from change_idx
-					self.note_sequences[self.change_idx].set_note(new_pitch, self.change_note)
+					self.note_sequencers[self.change_idx].set_pitch(new_pitch, self.change_note)
 
 			# scan through notes left or right
-			if keycode[1] == 'left':
+			scan = lookup(keycode[1], ['left', 'right'], [-1, 1])
+			if scan:
 				if self.changing:
-					self.note_sequences[self.change_idx].un_highlight(self.change_note)
-					self.change_note -= 1
-					self.change_note %= len(self.note_sequences[self.change_idx].get_notes())
-					self.note_sequences[self.change_idx].highlight(self.change_note)
-
-			if keycode[1] == 'right':
-				if self.changing:
-					self.note_sequences[self.change_idx].un_highlight(self.change_note)
-					self.change_note += 1
-					self.change_note %= len(self.note_sequences[self.change_idx].get_notes())
-					self.note_sequences[self.change_idx].highlight(self.change_note)
+					self.staff_note_parts[self.change_idx][self.change_note].set_highlight(False)
+					self.change_note += scan
+					self.change_note %= len(self.staff_note_parts[self.change_idx])
+					self.staff_note_parts[self.change_idx][self.change_note].set_highlight(True)
 
 		if self.current_mode == CHORD_GENERATION_MODE:
 			o = lookup(keycode[1], '1234', '0123')
@@ -375,9 +370,9 @@ class MainWidget(BaseWidget):
 			if self.changing:
 				c = self.find_part(touch.pos)
 			if c:
-				self.note_sequences[self.change_idx].un_highlight(self.change_note)
+				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(False)
 				(self.change_idx, self.change_note) = c
-				self.note_sequences[self.change_idx].highlight(self.change_note)
+				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(True)
 		else:
 			pass
 
