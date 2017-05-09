@@ -4,38 +4,12 @@ sys.path.append('..')
 
 # we should go through these and figure out what we need
 from common.core import *
-from common.audio import *
-from common.writer import *
-from common.mixer import *
-from common.gfxutil import *
-from common.wavegen import *
-from common.synth import *
 from common.clock import *
-from common.metro import *
-from common.noteseq import *
-from common.buffers import *
-from common.pitchdetect import *
+from common.constants import *
 from math import *
 
-
 from random import randint, random
-import aubio
-from bisect import bisect_left
 import numpy as np
-
-NUM_CHANNELS = 2
-soprano = 'SOPRANO'
-alto = 'ALTO'
-tenor = 'TENOR'
-bass = 'BASS'
-
-major = 'MAJOR'
-harm_minor = 'HARMONIC_MINOR'
-nat_minor = 'NATURAL_MINOR'
-
-voice_map ={"SOPRANO": 0, "ALTO": 1, "TENOR": 2, "BASS": 3}
-scales={"MAJOR": (0, 2, 4, 5, 7, 9, 11), "HARMONIC_MINOR": (0, 2, 3, 5, 7, 8, 11), "NATURAL_MINOR": (0, 2, 3, 5, 7, 8, 10)}
-chord_types={"MAJOR": (0, 4, 7), "MINOR": (0, 3, 7), "DIM": (0, 3, 6), "AUG": (0, 4, 8), "SUS4": (0, 5, 7)}
 
 # takes in int representing midi pitch
 class PitchClass(object):
@@ -53,8 +27,7 @@ class PitchClass(object):
         return ret
 
     def __str__(self):
-        names = ['C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G', 'G#/Ab', 'A', 'A#/Bb', 'B']
-        return names[self.pitch_class]
+        return PITCH_CLASS_NAMES[self.pitch_class]
 
 # pitch is midi, scale_type is either major, harmonic minor, natural minor
 class Key(object):
@@ -62,12 +35,10 @@ class Key(object):
         super(Key, self).__init__()
         self.pitch = pitch
         self.scale_type = scale_type
-        if scale_type == major:
-            self.scale = scales[major]
-        elif scale_type == harm_minor:
-            self.scale = scales[harm_minor]
+        if scale_type in SCALES.keys():
+            self.scale = SCALES[scale_type]
         else:
-            self.scale = scales[nat_minor]
+            self.scale = []
 
     def contains(self, midi):
         return self.get_scale_degree(midi) > 0
@@ -93,8 +64,8 @@ class Chord(object):
     def __init__(self, semitones_above_key, chord_type):
         super(Chord, self).__init__()
         self.semitones_above_key = semitones_above_key
-        if chord_type in chord_types:
-            self.chord_pitches = chord_types[chord_type]
+        if chord_type in CHORD_TYPES.keys():
+            self.chord_pitches = CHORD_TYPES[chord_type]
         else:
             self.chord_pitches = []
 
@@ -125,20 +96,12 @@ class Chord(object):
 
     def __str__(self):
         ret = ''
-        for x in self.get_chord_in_key(Key(60, "MAJOR")):
+        for x in self.get_chord_in_key(Key(60, MAJOR)):
             ret += str(x) + ' '
         return ret
 
     def __eq__(self, other):
         return str(self) == str(other)
-
-mat_chords = []
-for i in range(12):
-    mat_chords.append(Chord(i, "MAJOR"))
-    mat_chords.append(Chord(i, "MINOR"))
-    mat_chords.append(Chord(i, "DIM"))
-    mat_chords.append(Chord(i, "AUG"))
-    mat_chords.append(Chord(i, "SUS4"))
 
 def read_matrix(filepath):
     start = []
@@ -166,7 +129,14 @@ def read_matrix(filepath):
     return start, transition, end
 
 
-matrix = read_matrix('../data/pop.txt')
+MAT_CHORDS = []
+for i in range(12):
+    MAT_CHORDS.append(Chord(i, "MAJ"))
+    MAT_CHORDS.append(Chord(i, "MIN"))
+    MAT_CHORDS.append(Chord(i, "DIM"))
+    MAT_CHORDS.append(Chord(i, "AUG"))
+    MAT_CHORDS.append(Chord(i, "SUS4"))
+POP_MATRIX = read_matrix('../data/pop.txt')
 
 
 
@@ -187,16 +157,16 @@ class ChordPredictor(object):
         major_fit = []
         harm_minor_fit = []
         for i in range(12):
-            maj_scale = Key(i, major)
-            harm_min_scale = Key(i, harm_minor)
+            maj_scale = Key(i, MAJOR)
+            harm_min_scale = Key(i, HARMONIC_MINOR)
             major_fit.append(maj_scale.get_consonance(self.song))
             harm_minor_fit.append(harm_min_scale.get_consonance(self.song))
         if max(major_fit) >= max(harm_minor_fit):
             key = major_fit.index(max(major_fit))
-            return Key(key, major)
+            return Key(key, MAJOR)
         else:
             key = harm_minor_fit.index(max(harm_minor_fit))
-            return Key(key, harm_minor)
+            return Key(key, HARMONIC_MINOR)
 
     # measure_length given in ticks
     # TODO, make sure to pad song with enough rest so it doesn't go out of time
@@ -234,13 +204,15 @@ class ChordPredictor(object):
             return []
         measure = self.measures[idx]
         chord_weights = []
-        for chord in mat_chords:
+        for chord in MAT_CHORDS:
             chord_weights.append(chord.get_consonance(measure, self.key))
         max_val = max(chord_weights)
         chords = [1 if val >= max_val else 0 for val in chord_weights]
         return chords
 
     def get_top_three(self, idx):
+        # TODO: use different matrices?
+        matrix = POP_MATRIX
         chords = self.get_possible_chords(idx)
         probs = []
         for i in range(len(chords)):
@@ -249,11 +221,13 @@ class ChordPredictor(object):
         probs = sorted(set(probs), reverse=True)
         top_three = []
         for i in range(3):
-            top_three.append(mat_chords[probs_old.index(probs[i])])
+            top_three.append(MAT_CHORDS[probs_old.index(probs[i])])
         return top_three
 
 
     def get_one_chord(self, idx, prev_chord=None):
+        # TODO: use different matrices?
+        matrix = POP_MATRIX
         chords = self.get_possible_chords(idx)
         row = []
         if not prev_chord:
@@ -265,7 +239,7 @@ class ChordPredictor(object):
         row = row*np.array(chords)
 
         index = np.argmax(abs(row))
-        return mat_chords[index]
+        return MAT_CHORDS[index]
 
     def get_all_chords(self):
         chords = [self.get_one_chord(0)]
@@ -279,14 +253,16 @@ class ChordPredictor(object):
             chords.append(self.get_top_three(i))
         return list(itertools.product(*chords))
 
-    def get_best_chord_prog(self, chord_progs, matrix):
+    def get_best_chord_prog(self, chord_progs):
+        # TODO: use different matrices?
+        matrix = POP_MATRIX
         fits = []
         fit = 0
         for chords in chord_progs:
-            fit = matrix[0][mat_chords.index(chords[0])]
+            fit = matrix[0][MAT_CHORDS.index(chords[0])]
             for i in range(1, len(chords)):
-                fit += matrix[1][mat_chords.index(chords[i-1])][mat_chords.index(chords[i])]
-            fit += matrix[2][mat_chords.index(chords[-1])]
+                fit += matrix[1][MAT_CHORDS.index(chords[i-1])][MAT_CHORDS.index(chords[i])]
+            fit += matrix[2][MAT_CHORDS.index(chords[-1])]
             fits.append(fit)
         fits_original = fits[:]
         fits = sorted(set(fits), reverse=True)
@@ -307,13 +283,14 @@ class VoicePredictor(object):
 
     def get_pitches_in_range(self, voice):
         # got info from https://musescore.org/en/node/4581
-        # voice_part -> one of soprano, alto, tenor, base
+        # voice_part -> one of SOPRANO, ALTO, TENOR, BASS
+        # TODO: make this a global dictionary?
 
-        if voice == soprano:
+        if voice == SOPRANO:
             voice_range = [65, 72]
-        elif voice == alto:
+        elif voice == ALTO:
             voice_range = [55,65]
-        elif voice == tenor:
+        elif voice == TENOR:
             voice_range = [48, 53]
         else:
             voice_range = [43,55]
@@ -326,7 +303,7 @@ class VoicePredictor(object):
     def chord_voicing_options(self):
         # returns a list of possible chord voicings for this chord
         pitch_choices = {}
-        for voice in [soprano, alto, tenor, bass]:
+        for voice in [SOPRANO, ALTO, TENOR, BASS]:
             options = self.get_pitches_in_range(voice)
             pitch_choices[voice] = options
 
@@ -347,8 +324,9 @@ class VoicePredictor(object):
         for perm in final_list:
             # figure out specific frequencies that go to each voice
             add = []
-            for voice in [soprano, alto, tenor, bass]:
-                index = voice_map[voice]
+            # TODO make this cleaner
+            for voice in [SOPRANO, ALTO, TENOR, BASS]:
+                index = VOICE_MAP[voice]
                 add.append(pitch_choices[voice][perm[index]])
             for possibility in list(itertools.product(*add)):
                 voicing = ChordVoicing(*possibility)
@@ -424,7 +402,7 @@ class ChordVoicing(object):
         return True
 
     def __str__(self):
-        return "SOPRANO: {}, ALTO: {}, TENOR: {}, BASS: {}".format(self.soprano, self.alto, self.tenor, self.bass)
+        return "soprano: {}, alto: {}, tenor: {}, bass: {}".format(self.soprano, self.alto, self.tenor, self.bass)
 
 
 def create_note_sequencers(voicings, length):
@@ -439,16 +417,14 @@ def create_note_sequencers(voicings, length):
         ten += ((length, voicing.tenor),)
         bas += ((length, voicing.bass),)
 
-    return {soprano: sop, alto: alt, tenor: ten, bass: bas}
-
-somewhere = [(600, 60), (480, 72), (360, 71), (160, 67), (240, 69), (360, 71), (480, 72)]
+    return {SOPRANO: sop, ALTO: alt, TENOR: ten, BASS: bas}
 
 def get_chords_and_voicings(song, measure_length=960, key=None):
     chord_predictor = ChordPredictor(song, measure_length, key)
 
     chord_progs = chord_predictor.get_all_possible_chord_progs()
 
-    chords_4 = chord_predictor.get_best_chord_prog(chord_progs, matrix)
+    chords_4 = chord_predictor.get_best_chord_prog(chord_progs)
 
     voicings_4 = []
     for j in range(4):
@@ -464,6 +440,6 @@ def get_chords_and_voicings(song, measure_length=960, key=None):
                 voicings.append(voice_predictor.get_best_voicing())
 
         dictionary = create_note_sequencers(voicings, measure_length)
-        dictionary["solo"] = song
+        dictionary[SOLO] = song
         voicings_4.append(dictionary)
     return voicings_4

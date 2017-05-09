@@ -38,11 +38,9 @@ import aubio
 from bisect import bisect_left
 import numpy as np
 
-NUM_CHANNELS = 2
 
-
-rel_rhythm = [2.5, 2.5, 2.5, 3.7, 4.5, 4.5, 7.7, 7.7, 8.3, 9.5, 9.5, 9.5]
-beat_rhythm = [2.5, 2.5, 2.5, 3.7, 4.5, 4.5, 7.7, 7.7, 8.5, 9.7, 9.7, 9.7]
+#rel_rhythm = [2.5, 2.5, 2.5, 3.7, 4.5, 4.5, 7.7, 7.7, 8.3, 9.5, 9.5, 9.5]
+#beat_rhythm = [2.5, 2.5, 2.5, 3.7, 4.5, 4.5, 7.7, 7.7, 8.5, 9.7, 9.7, 9.7]
 
 class RhythmDetector(object):
     def __init__(self, tempo, rhythm_profile):

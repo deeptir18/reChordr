@@ -30,7 +30,7 @@ SHARP = "sharp"
 FLAT = "flat"
 NATURAL = "natural"
 NONE = "None"
-kSomewhere = [[960, 60], [960, 73], [480, 71], [240, 67], [240, 69], [480, 71], [480, 72]]
+kSomewhere = [[960, 60], [960, 74], [480, 71], [240, 67], [240, 69], [480, 71], [480, 72]]
 kSomewhere_mod = ((960, 60), (480, 72), (960, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
 # TODO: hook this up to RHYTHMS and to note sequencers -> and try to display an entire song
 # then add movement with a nowbar so it plays through the note sequence
@@ -225,7 +225,13 @@ class StaffNote(InstructionGroup):
     def rect_corners(self):
         (x1, y1) = self.rectangle.pos
         (x2, y2) = (x1 + self.size[0], y1 + self.size[1])
-        return ((x1, x2, y1, y2), self.part_idx, self.note_idx)
+        return (x1, x2, y1, y2)
+
+    def intersects(self, pos):
+        (x, y) = pos
+        (x1, x2, y1, y2) = self.rect_corners()
+        return x1 <= x and x <= x2 and y1 <= y and y <= y2
+
 
 
 class Barline(InstructionGroup):
@@ -238,3 +244,35 @@ class Barline(InstructionGroup):
         self.accompany_barline = Line(points=(x_pos, self.stave.bass_stave_start, x_pos, self.stave.treble_stave_start + STAVE_HEIGHT - STAVE_SPACE_HEIGHT), width=LINE_WIDTH)
         self.add(self.solo_barline)
         self.add(self.accompany_barline)
+
+# staves is a list of staves
+def get_all_barlines(staves):
+    all_barlines = []
+    x_pos = NOTES_START
+    # maybe not hard-code 4
+    bar_length = (Window.width - NOTES_START)/4.0
+    for i in range(4):
+        for stave in staves:
+            all_barlines.append(Barline(stave, x_pos))
+        x_pos += bar_length
+    return all_barlines
+
+def get_staff_notes(seq, note_type, part_idx, color, stave): # renders a 4 bar note sequence
+    # this was previously self.time_passed but is not used anywhere else
+    time_passed = 0.
+    staff_notes = []
+    note_idx = 0
+    # this line is not used anywhere
+    #pitches = []
+    for note in seq:
+        length = note[0]
+        start = (time_passed/(960*4.0))*(Window.width - NOTES_START) + NOTES_START
+        end = start + length/(960*4.0)*(Window.width - NOTES_START)
+
+        pitch = note[1]
+        staff_note = StaffNote(pitch, stave, start, end, note_type, color, part_idx, note_idx)
+        staff_notes.append(staff_note)
+        time_passed += length
+        note_idx += 1
+    return staff_notes
+

@@ -15,6 +15,7 @@ from common.metro import *
 from common.noteseq import *
 from common.buffers import *
 from common.pitchdetect import *
+from common.constants import *
 from input.solo_transcribe import *
 from visual.staff_vis import *
 from math import *
@@ -28,11 +29,6 @@ import aubio
 from bisect import bisect_left
 import numpy as np
 
-SET_TEMPO_MODE = 0
-SOLO_TRANSCRIBE_MODE = 1
-SOLO_EDIT_MODE = 2
-CHORD_GENERATION_MODE = 3
-
 class MainWidget(BaseWidget):
 	def __init__(self):
 		super(MainWidget, self).__init__()
@@ -42,8 +38,6 @@ class MainWidget(BaseWidget):
 		self.add_widget(self.info)
 		
 		self._init_set_tempo_mode()
-
-
 
 	def _change_modes(self):
 		if self.current_mode == SET_TEMPO_MODE:
@@ -56,25 +50,30 @@ class MainWidget(BaseWidget):
 			self._init_chord_generation_mode()
 			self.current_mode = CHORD_GENERATION_MODE
 
-
+	####################
+	# Set Tempo Mode   #
+	####################
 	def _init_set_tempo_mode(self):
 		# Metronome + rhythm detector
-		self.tempo = 60
-		self.rhythm_detector = RhythmDetector(self.tempo, rel_rhythm)
+		self.tempo = DEFAULT_TEMPO
+		self.rhythm_detector = RhythmDetector(self.tempo, RHYTHM_PROFILE)
 		# take AudioScheduler from RhythmDetector
 		self.sched = self.rhythm_detector.sched
 
 		# separate audio channel for the metronome
 		self.metro_audio = Audio(NUM_CHANNELS)
-		self.synth = Synth('../data/FluidR3_GM.sf2', Audio.sample_rate)
+		self.synth = Synth(PATH_TO_SYNTH, Audio.sample_rate)
 
 		# connect scheduler into audio system
 		self.metro_audio.set_generator(self.sched)
 		self.sched.set_generator(self.synth)
 
 		# create the metronome:
-		self.metro = Metronome(self.sched, self.synth)
+		self.metro = Metronome(self.sched, self.synth, METRO_CHANNEL)
 
+	##########################
+	# Solo Transcribe Mode   #
+	##########################
 	def _init_solo_transcribe_mode(self):
 		self.metro.stop()
 
@@ -91,16 +90,21 @@ class MainWidget(BaseWidget):
 		self.last_pitch = Pitch(0, 1, 0, 0, None)
 
 		# used for playback
+		# argument for NoteSequencer
 		self.song = []
+		# holds information about pitch detection confidence
 		self.note_song = NoteSong(TimeSig(4,4), self.tempo)
 
+		# NoteSequencer with self.song as argument
 		self.seq = NoteSequencer(self.sched, self.synth, 1, (0, 0), self.song, False)
 
-	# Needed for pitch detector
+	# Helper method for pitch detector
 	def receive_audio(self, frames, num_channels) :
 			# handle 1 or 2 channel input.
 			# if input is stereo, mono will pick left or right channel. This is used
 			# for input processing that must receive only one channel of audio (RMS, pitch, onset)
+			
+			# other channel data if stereo
 			other = []
 			if num_channels == 2:
 					mono = frames[0::2] # pick left or right channel
@@ -108,25 +112,31 @@ class MainWidget(BaseWidget):
 			else:
 					mono = frames
 
-			# pitch detection: get pitch and display on meter and graph
-			self.cur_pitch = self.pitch.write(mono)
-			self.pitch_snap.on_update(self.cur_pitch)
+			# pitch detection: get pitch
+			cur_pitch = self.pitch.write(mono)
+			self.pitch_snap.on_update(cur_pitch)
+			# use both channels to help detect pitch
 			if len(other) > 0:
 				self.pitch_snap.on_update(self.pitch.write(other))
 
+	####################
+	# Solo Edit Mode   #
+	####################
 	def _init_solo_edit_mode(self):
 		self.metro.stop()
 		#TODO: an elegant way to process the final note here
 		self.on_key_down([None, 'spacebar'], None)
 		# render the entire stave but just change parts to be 4 960s
+		# TODO: need to be able to change this
 		self.measure_length = 960
 
+		# variables for playback + editing
 		self.playing = False
 		self.changing = False
+		# which part is being changed
 		self.change_idx = 4
+		# idx of note within the part that's being changed
 		self.change_note = 0
-
-		self.rectangles = []
 		
 		self.top_stave = TripleStave(Window.height/2)
 		# Do we use the bottom stave at all?
@@ -134,101 +144,71 @@ class MainWidget(BaseWidget):
 		self.canvas.add(self.top_stave)
 		self.canvas.add(self.bottom_stave)
 		
-		x_pos = NOTES_START
-		self.bar_length = (Window.width - NOTES_START)/4.0
-		for i in range(4):
-				self.canvas.add(Barline(self.top_stave, x_pos))
-				self.canvas.add(Barline(self.bottom_stave, x_pos))
-				x_pos += self.bar_length
+		barlines = get_all_barlines([self.top_stave, self.bottom_stave])
+		for b in barlines:
+			self.canvas.add(b)
 
-		self.colors = [(0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0)]
-		self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4)]
-		self.parts = ["Bass", "Tenor", "Alto", "Soprano", "Solo"]
-		self.num_channels = 5
-		self.hi = 0
-		# why are lines and self.parts both things?
-		lines = ["BASS", "TENOR", "ALTO", "SOPRANO", "solo"]
+		# gives empty voicings for SATB parts
 		single_note_seq = [[960, 0], [960, 0], [960, 0], [960, 0]]
-		self.voicing_note_seqs = [single_note_seq for i in lines]
+		# array of SATB + solo line, each in (dur, midi) form
+		voicing_note_seqs = [single_note_seq for i in PARTS]
 		self.song = kSomewhere # TODO: remove this
-		self.voicing_note_seqs[4] = self.song
+		voicing_note_seqs[4] = self.song
 		# do a sketchy thing to fix the pitch the song
-		self.note_staffs = [self.render_note_sequence(self.voicing_note_seqs[i], lines[i], i, self.colors[i]) for i in range(self.num_channels)]
-		self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i],
-												 part = self.parts[i], notes = self.voicing_note_seqs[i], loop=True, note_cb=None,
-												 note_staffs=self.note_staffs[i]) for i in range(self.num_channels)]
+		# array of SATB + solo line, each as a collection of StaffNote objects
+		self.note_staffs = [get_staff_notes(voicing_note_seqs[i], PARTS[i], i, COLORS[i], self.top_stave) for i in range(NUM_PARTS)]
+		for part in self.note_staffs:
+			for staff_note in part:
+				self.canvas.add(staff_note)
+		# array of SATB + solo line, each a NoteStaffSequencer object
+		self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=PART_CHANNELS[i], patch = PATCHES[i],
+												 part = PARTS[i], notes = voicing_note_seqs[i], loop=True, note_cb=None,
+												 note_staffs=self.note_staffs[i]) for i in range(NUM_PARTS)]
 
 	def _init_chord_generation_mode(self, idx=0):
 		self.canvas.clear()
-		self.synth.cc(5, 7, 120)
-		self.synth.cc(1, 7, 50)
-		self.synth.cc(2, 7, 50)
-		self.synth.cc(3, 7, 50)
-		self.synth.cc(4, 7, 50)
+		# I think we also need to stop anything that's playing
+		
+		# set volumes
+		for i in range(NUM_PARTS):
+			self.synth.cc(PART_CHANNELS[i], 7, PART_VOLUMES[i])
 
+		# variables for playback + editing
 		self.playing = False
 		self.changing = False
-		self.change_idx = 0
+		# which part is being changed
+		self.change_idx = 4
+		# idx of note within the part that's being changed
 		self.change_note = 0
 
-		self.rectangles = []
-
-		self.top_stave = TripleStave(Window.height/2)
-		# Do we use the bottom stave at all?
-		self.bottom_stave = TripleStave(10)
 		self.canvas.add(self.top_stave)
 		self.canvas.add(self.bottom_stave)
 		
-		x_pos = NOTES_START
-		self.bar_length = (Window.width - NOTES_START)/4.0
-		for i in range(4):
-				self.canvas.add(Barline(self.top_stave, x_pos))
-				self.canvas.add(Barline(self.bottom_stave, x_pos))
-				x_pos += self.bar_length
-
-		self.colors = [(0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0)]
-		self.patches = [(0, 42), (0,41), (0, 40), (0,40), (0, 4)]
-		self.parts = ["Bass", "Tenor", "Alto", "Soprano", "Solo"]
-		self.num_channels = 5
+		barlines = get_all_barlines([self.top_stave, self.bottom_stave])
+		for b in barlines:
+			self.canvas.add(b)
 		
-		lines = ["BASS", "TENOR", "ALTO", "SOPRANO", "solo"]
+		# four different chord/voicing options as part: NoteSequencer data form
 		self.voicing_options = get_chords_and_voicings(self.song, self.measure_length)
-		self.voicing_note_seqs = self.voicing_options[idx]
-		self.voicing_note_seqs = [list(self.voicing_note_seqs[i]) for i in lines]
-		self.note_staffs = [self.render_note_sequence(self.voicing_note_seqs[i], lines[i], i, self.colors[i]) for i in range(self.num_channels)]
-		self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=i+1, patch = self.patches[i],
-													 part = self.parts[i], notes = self.voicing_note_seqs[i], loop=True, note_cb=None, 
-													 note_staffs=self.note_staffs[i]) for i in range(self.num_channels)]
+		# turn this into the following:
+		# array of SATB + solo line, each in (dur, midi) form
+		voicing_note_seqs = self.voicing_options[idx]
+		voicing_note_seqs = [list(voicing_note_seqs[i]) for i in PARTS]
+		self.note_staffs = [get_staff_notes(voicing_note_seqs[i], PARTS[i], i, COLORS[i], self.top_stave) for i in range(NUM_PARTS)]
+		for part in self.note_staffs:
+			for staff_note in part:
+				self.canvas.add(staff_note)
+		# array of SATB + solo line, each a NoteStaffSequencer object
+		self.note_sequences = [NoteStaffSequencer(self.sched, self.synth, channel=PART_CHANNELS[i], patch = PATCHES[i],
+													 part = PARTS[i], notes = voicing_note_seqs[i], loop=True, note_cb=None, 
+													 note_staffs=self.note_staffs[i]) for i in range(NUM_PARTS)]
 
-	# Needed for solo edit and chord
-	def render_note_sequence(self, seq, note_type, part_idx, color): # renders a 4 bar note sequence
-		self.time_passed = 0.
-		self.note_staffs = []
-		note_idx = 0
-		pitches = []
-		for note in seq:
-			length = note[0]
-			start = (self.time_passed/(960*4.0))*(Window.width - NOTES_START) + NOTES_START
-			end = start + length/(960*4.0)*(Window.width - NOTES_START)
-
-			pitch = note[1]
-			pitches.append(pitch)
-			note = StaffNote(pitch, self.top_stave, start, end, note_type, color, part_idx, note_idx)
-			# are these things not the same?
-			self.rectangles.append(note)
-			self.note_staffs.append(note)
-			self.canvas.add(note)
-			self.time_passed += length
-			note_idx += 1
-		return self.note_staffs
-
-	#NEEDS ALTERING: same as on_touch_down, currently splits the screen into 5 parts vertically and you can change parts that way
+	# returns which StaffNote was clicked
 	def find_part(self, pos):
-		(x, y) = pos
-		corners = [r.rect_corners() for r in self.rectangles]
-		for ((x1, x2, y1, y2), part_idx, note_idx) in corners:
-			if x1 <= x and x <= x2 and y1 <= y and y <= y2:
-				return (part_idx, note_idx)
+		for part in self.note_staffs:
+			for staff_note in part:
+				if staff_note.intersects(pos):
+					return (staff_note.part_idx, staff_note.note_idx)
 		return None
 
 	def on_update(self):
@@ -249,19 +229,9 @@ class MainWidget(BaseWidget):
 		elif self.current_mode == SOLO_EDIT_MODE:
 			self.metro_audio.on_update()
 			self.info.text = "Welcome to reChordr\n"
-			self.info.text += "Press 2 to play transcribed notes\n"
-			self.info.text += "Do something to edit\n"
-			self.info.text += "Press 'N' to go to the next step"
 		elif self.current_mode == CHORD_GENERATION_MODE:
+			self.metro_audio.on_update()
 			self.info.text = "Welcome to reChordr\n"
-			self.info.text += "Press the spacebar to play your piece\n"
-			self.info.text += "Do something to edit\n"
-			self.info.text += "Press 'N' to go to the next step"
-
-			if self.playing:
-				self.metro_audio.on_update()
-			if self.changing:
-				self.info.text += "Changing: " + self.parts[self.change_idx]
 
 	def on_key_down(self, keycode, modifiers):
 		if keycode[1] == 'n':
