@@ -137,7 +137,7 @@ class Barline(InstructionGroup):
         self.add(self.solo_barline)
         self.add(self.accompany_barline)
 
-# staves is a list of staves
+# staves is a list of staves, returns a list of all barline objects to be drawn
 def get_all_barlines(staves):
     all_barlines = []
     x_pos = NOTES_START
@@ -152,8 +152,6 @@ def get_all_barlines(staves):
 class StaffNote(InstructionGroup):
     def __init__(self, pitch, stave, x_start, x_end, note_type, color, part_idx, note_idx):
         super(StaffNote, self).__init__()
-        # create a dictionary of midi pitches
-        # calculate the height from the pitch
         self.pitch = pitch
         self.stave = stave
         padding = .25*(x_end - x_start)
@@ -205,23 +203,21 @@ class StaffNote(InstructionGroup):
             self.color.rgb = self.default_color
             self.set_active(False)
 
-    def get_corners(self):
+    def _get_corners(self):
         (x1, y1) = self.rectangle.pos
         (x2, y2) = (x1 + self.size[0], y1 + self.size[1])
         return (x1, x2, y1, y2)
 
     def intersects(self, pos):
         (x, y) = pos
-        (x1, x2, y1, y2) = self.get_corners()
+        (x1, x2, y1, y2) = self._get_corners()
         return x1 <= x and x <= x2 and y1 <= y and y <= y2
 
 def get_staff_notes(notes, note_type, part_idx, color, stave): # renders a 4 bar note sequence
-    # this was previously self.time_passed but is not used anywhere else
     time_passed = 0.
     staff_notes = []
     note_idx = 0
-    # this line is not used anywhere
-    #pitches = []
+
     for note in notes:
         length = note[0]
         start = (time_passed/(960*4.0))*(Window.width - NOTES_START) + NOTES_START
@@ -234,8 +230,19 @@ def get_staff_notes(notes, note_type, part_idx, color, stave): # renders a 4 bar
         note_idx += 1
     return staff_notes
 
+# highlights StaffNote at idx within staff_note_part
 def highlight_staff_note(staff_note_part, idx):
     prev_staff_note = staff_note_part[idx - 1]
     prev_staff_note.set_active(False)
     staff_note = staff_note_part[idx]
     staff_note.set_active(True)
+
+# reverts all the StaffNotes in staff_note_part to original coloring
+def reset_to_default(staff_note_part):
+    for staff_note in staff_note_part:
+        staff_note.set_highlight(False)
+        staff_note.set_active(False)
+
+
+
+

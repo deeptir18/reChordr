@@ -2,20 +2,6 @@
 import sys
 sys.path.append('..')
 
-from common.core import *
-from common.audio import *
-from common.writer import *
-from common.mixer import *
-from common.gfxutil import *
-from common.wavegen import *
-from common.synth import *
-from common.clock import *
-from common.metro import *
-from common.noteseq import *
-from common.buffers import *
-from common.pitchdetect import *
-from math import *
-
  # extra information ->
  # for each pitch - has what pitches it could have been
  # absolute pitch and what relative pitch says it should be

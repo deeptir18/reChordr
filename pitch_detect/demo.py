@@ -14,9 +14,9 @@ from common.noteseq import *
 from common.buffers import *
 from common.pitchdetect import *
 from common.constants import *
-from input.solo_transcribe import *
+from input.solotranscribe import *
 from input.harmonycreator import *
-from visual.staff_vis import *
+from visual.staffvis import *
 from math import *
 
 from kivy.graphics.instructions import InstructionGroup
@@ -117,6 +117,7 @@ class MainWidget(BaseWidget):
 	####################
 	def _init_solo_edit_mode(self):
 		self.metro.stop()
+		self.seq.stop()
 		#TODO: an elegant way to process the final note here
 		self.on_key_down([None, 'spacebar'], None)
 		# render the entire stave but just change parts to be 4 960s
@@ -161,7 +162,8 @@ class MainWidget(BaseWidget):
 
 	def _init_chord_generation_mode(self, idx=0):
 		self.canvas.clear()
-		# I think we also need to stop anything that's playing
+		for ns in self.note_sequencers:
+			ns.stop()
 		
 		# set volumes
 		for i in range(NUM_PARTS):
@@ -208,6 +210,7 @@ class MainWidget(BaseWidget):
 		return None
 
 	def on_update(self):
+		# Set text
 		if self.current_mode == SET_TEMPO_MODE:
 			self.metro_audio.on_update()
 			self.info.text = "Welcome to reChordr\nUse the left/right arrows to pick a tempo\n"
@@ -299,26 +302,27 @@ class MainWidget(BaseWidget):
 
 			# toggle playback
 			if keycode[1] == 'p':
+				for part in self.staff_note_parts:
+					reset_to_default(part)
 				self.changing = False
 				self.playing = not self.playing
 				for ns in self.note_sequencers:
+					# currently plays from the beginning
 					ns.toggle()
-
-			# start playback
-			if keycode[1] == 's':
-				if not self.playing:
-					self.playing = True
-					for ns in self.note_sequencers:
-						ns.start()
 
 			# change notes
 			if keycode[1] == 'c':
-				if not self.playing:
-					self.changing = not self.changing
+				for part in self.staff_note_parts:
+					reset_to_default(part)
+				self.playing = False
+				for ns in self.note_sequencers:
+					# currently plays from the beginning
+					ns.stop()
+				self.changing = not self.changing
 				if self.changing:
-					# if self.current_mode == SOLO_EDIT_MODE:
-						# fix later
+					# TODO: have it from the current place?
 					self.change_note = 0
+					# if self.current_mode == SOLO_EDIT_MODE:
 						# self.change_note = self.note_sequences[4]
 						# self.change_note %= len(self.note_sequences[4].note_sequencer.notes)
 					# else:
@@ -367,9 +371,11 @@ class MainWidget(BaseWidget):
 	def on_touch_down(self, touch):
 		c = None
 		if self.current_mode == SOLO_EDIT_MODE or self.current_mode == CHORD_GENERATION_MODE:
-			if self.changing:
-				c = self.find_part(touch.pos)
+			c = self.find_part(touch.pos)
 			if c:
+				if not self.changing:
+					# enter changing mode
+					self.on_key_down([None, 'c'], None)
 				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(False)
 				(self.change_idx, self.change_note) = c
 				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(True)
