@@ -4,6 +4,7 @@ sys.path.append('..')
 from common.constants import *
 from kivy.graphics.instructions import InstructionGroup
 from kivy.graphics import Color, Rectangle, Line
+from input.harmonycreator import PitchClass
 
 # TODO: hook this up to RHYTHMS and to note sequencers -> and try to display an entire song
 # then add movement with a nowbar so it plays through the note sequence
@@ -13,6 +14,7 @@ from kivy.graphics import Color, Rectangle, Line
 # pitch mapping maps pitches to heights relative to how many "clef spaces" they are away
 # i.e., for treble clef, the the 1st line represents the E -> which is at the starting height, so to draw a E, the rectangle needs to start half a space below
 # for treble clef -> F is at 0, E is at -.5, D is at -1, C is at -1.5, B is at -2, etc.
+
 class Stave(InstructionGroup):
     def __init__(self, pitch_mapping,  starting_height, clef_png, clef_start, clef_size):
         super(Stave, self).__init__()
@@ -75,32 +77,6 @@ class TripleStave(InstructionGroup):
         self.add(self.left_line)
         self.add(self.solo_line)
 
-
-    def get_pitch_down(self, pitch):
-        bass = self.get_bass_pitch_mappings().keys()
-        treble = self.get_treble_pitch_mappings().keys()
-        bass.extend(treble)
-        bass.sort()
-        # find the index of this pitch
-        ind = bass.index(pitch)
-        if ind > 0:
-            return bass[ind - 1]
-        else:
-            return pitch
-
-    def get_pitch_up(self, pitch):
-        bass = self.get_bass_pitch_mappings().keys()
-        treble = self.get_treble_pitch_mappings().keys()
-        bass.extend(treble)
-        bass.sort()
-        # find the index of this pitch
-        ind = bass.index(pitch)
-        if ind <  len(bass) - 1:
-            return bass[ind + 1]
-        else:
-            return pitch
-
-
     # everything is in C major for now
     def get_treble_pitch_mappings(self):
         # F is at 0 -> so E is at -.5 and G is at + .5
@@ -112,19 +88,33 @@ class TripleStave(InstructionGroup):
         return ret
 
     def get_pitch_height(self, pitch, note_type):
+        if pitch == 0:
+            return (0, False)
+        if pitch < MIN_PITCH or pitch > MAX_PITCH:
+            return (-1, False)# error cannot render
+        # check what note this is using pitch class
+        pitch_class = PitchClass(pitch)
+        render_sharp = False
+        if pitch_class.has_sharp():
+            render_sharp = True
+
         bass_mappings = self.get_bass_pitch_mappings()
         treble_mappings = self.get_treble_pitch_mappings()
+
         if pitch not in treble_mappings and pitch not in bass_mappings:
-            return -1. #this is not good but ERROR breaks the code
+            assert(render_sharp)
+            # turn pitch the closest pitch in the dictionary down (and render sharp will be true)
+            new_pitch = pitch
+            while new_pitch not in treble_mappings and new_pitch not in bass_mappings:
+                new_pitch -= 1
+            pitch = new_pitch
         if note_type == SOLO:
-            if pitch not in treble_mappings:
-                return -1.
-            return self.solo_stave.get_pitch_height(pitch)
+            return (self.solo_stave.get_pitch_height(pitch), render_sharp)
         else:
             if pitch in treble_mappings:
-                return self.treble_stave.get_pitch_height(pitch)
+                return (self.treble_stave.get_pitch_height(pitch), render_sharp)
             else:
-                return self.bass_stave.get_pitch_height(pitch)
+                return (self.bass_stave.get_pitch_height(pitch), render_sharp)
 
 class Barline(InstructionGroup):
     def __init__(self, stave, x_pos):
@@ -149,20 +139,22 @@ def get_all_barlines(staves):
         x_pos += bar_length
     return all_barlines
 
+
+
+
 class StaffNote(InstructionGroup):
     def __init__(self, pitch, stave, x_start, x_end, note_type, color, part_idx, note_idx):
         super(StaffNote, self).__init__()
         self.pitch = pitch
         self.stave = stave
+        self.note_type = note_type
+
         padding = .25*(x_end - x_start)
         self.x_start = x_start + padding
-        self.color = Color(color[0], color[1], color[2], .5)
-        self.default_color = color
-        self.add(self.color)
-        
+
         self.length = x_end - padding - self.x_start
-        
-        self.note_type = note_type
+
+
 
         self.part_idx = part_idx
         self.note_idx = note_idx
@@ -172,13 +164,32 @@ class StaffNote(InstructionGroup):
             self.pos = (0,0)
         else:
             self.size = (self.length, STAVE_SPACE_HEIGHT)
-            self.pos = (self.x_start, self.get_height(pitch))
+            self.pos = (self.x_start, self.get_height())
+            self.add_sharp()
+
+        self.color = Color(color[0], color[1], color[2], .5)
+        self.default_color = color
+        self.add(self.color)
         self.rectangle = Rectangle(pos = self.pos, size=self.size)
         self.add(self.rectangle)
 
-    def get_height(self, pitch):
+    def add_sharp(self):
+        self.sharp = Rectangle(pos = (self.pos[0] - 20, self.pos[1]), size = (20, STAVE_SPACE_HEIGHT), source="./visual/sharp.png")
+        if self.has_sharp():
+            self.add(Color(1,1,1))
+            self.add(self.sharp)
+
+    def remove_sharp(self):
+        if self.sharp is not None:
+            self.sharp.size = (0,0)
+
+
+    def get_height(self):
         # return the height from the stave
-        return self.stave.get_pitch_height(pitch, self.note_type)
+        return self.stave.get_pitch_height(self.pitch, self.note_type)[0]
+
+    def has_sharp(self):
+        return self.stave.get_pitch_height(self.pitch, self.note_type)[1]
 
     def set_active(self, active):
         if active:
@@ -186,11 +197,19 @@ class StaffNote(InstructionGroup):
         else:
             self.color.a = .5
 
-    #NEEDS ALTERING: you probably need to map it to C major or something, I didn't have enough time to look at what kind of pitch get_height takes
+    def check_pitch(self, pitch):
+        # returns true if this pitch can be rendered in this clef
+        if (self.stave.get_pitch_height(pitch, self.note_type)[0] == -1):
+            return False
+        return True
+
+
     def set_pitch(self, new_pitch):
         self.pitch = new_pitch
-        self.pos = (self.x_start, self.get_height(new_pitch))
-        self.rectangle.pos = (self.x_start, self.get_height(new_pitch))
+        self.remove_sharp()
+        self.pos = (self.x_start, self.get_height())
+        self.rectangle.pos = self.pos
+        self.add_sharp()
 
     # currently not using this
     def move_pitch(self, semitones_up):
@@ -198,7 +217,7 @@ class StaffNote(InstructionGroup):
 
     def set_highlight(self, on):
         if on:
-            self.color.rgb = (1, 1, 1)
+            self.color.rgb = (0, 0, 0)
         else:
             self.color.rgb = self.default_color
             self.set_active(False)
@@ -220,8 +239,8 @@ def get_staff_notes(notes, note_type, part_idx, color, stave): # renders a 4 bar
 
     for note in notes:
         length = note[0]
-        start = (time_passed/(960*4.0))*(Window.width - NOTES_START) + NOTES_START
-        end = start + length/(960*4.0)*(Window.width - NOTES_START)
+        start = (time_passed/(MEASURE_LENGTH*4.0))*(Window.width - NOTES_START) + NOTES_START
+        end = start + length/(MEASURE_LENGTH*4.0)*(Window.width - NOTES_START)
 
         pitch = note[1]
         staff_note = StaffNote(pitch, stave, start, end, note_type, color, part_idx, note_idx)
@@ -232,8 +251,8 @@ def get_staff_notes(notes, note_type, part_idx, color, stave): # renders a 4 bar
 
 # highlights StaffNote at idx within staff_note_part
 def highlight_staff_note(staff_note_part, idx):
-    prev_staff_note = staff_note_part[idx - 1]
-    prev_staff_note.set_active(False)
+    for i in range(len(staff_note_part)):
+        staff_note_part[i].set_active(False)
     staff_note = staff_note_part[idx]
     staff_note.set_active(True)
 
@@ -242,7 +261,3 @@ def reset_to_default(staff_note_part):
     for staff_note in staff_note_part:
         staff_note.set_highlight(False)
         staff_note.set_active(False)
-
-
-
-

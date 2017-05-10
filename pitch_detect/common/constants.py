@@ -1,5 +1,8 @@
 from common.clock import kTicksPerQuarter
 from kivy.core.window import Window
+# FOR rendering
+MEASURE_LENGTH = 960*2
+
 # Controls for different modes
 SET_TEMPO_MODE = 0
 SOLO_TRANSCRIBE_MODE = 1
@@ -26,6 +29,8 @@ SCALES={MAJOR: (0, 2, 4, 5, 7, 9, 11), HARMONIC_MINOR: (0, 2, 3, 5, 7, 8, 11), N
 CHORD_TYPES={"MAJ": (0, 4, 7), "MIN": (0, 3, 7), "DIM": (0, 3, 6), "AUG": (0, 4, 8), "SUS4": (0, 5, 7)}
 PITCH_CLASS_NAMES = ['C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G', 'G#/Ab', 'A', 'A#/Bb', 'B']
 
+MIN_PITCH = 40
+MAX_PITCH = 76
 # constants for GUI
 COLORS = [(0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0)]
 PATCHES = [(0, 42), (0,41), (0, 40), (0,40), (0, 4)]
@@ -40,11 +45,10 @@ NATURAL = "natural"
 NONE = "None"
 
 kSomewhere = [[960, 60], [960, 74], [480, 71], [240, 67], [240, 69], [480, 71], [480, 72]]
-kSomewhere_mod = ((960, 60), (480, 72), (960, 71), (240, 67), (240, 69), (480, 71), (480, 72), )
+kSomewhere_mod = [(960, 60), (480, 72), (960, 71), (240, 67), (240, 69), (480, 71), (480, 73), ]
 
 STAFF_LEFT_OFFSET = 20 # offset from the left side
 STAVE_SPACE_HEIGHT = 15 # height of a single space
 STAVE_HEIGHT = STAVE_SPACE_HEIGHT*5
 LINE_WIDTH = 1.2
 NOTES_START = 150
-

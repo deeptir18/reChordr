@@ -86,4 +86,3 @@ class NoteSequencer(object):
         if idx >= 0 and idx < len(self.notes):
             (dur, pitch) = self.notes[idx]
             self.notes[idx] = (dur, new_pitch)
-

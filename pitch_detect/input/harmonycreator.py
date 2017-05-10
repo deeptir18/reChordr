@@ -24,6 +24,11 @@ class PitchClass(object):
         ret = [i for i in ret if self.contains(i)]
         return ret
 
+    def has_sharp(self):
+        if "#" in PITCH_CLASS_NAMES[self.pitch_class]:
+            return True
+        return False
+
     def __str__(self):
         return PITCH_CLASS_NAMES[self.pitch_class]
 

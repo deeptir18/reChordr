@@ -25,11 +25,13 @@ from kivy.graphics import Color, Rectangle, Line
 class MainWidget(BaseWidget):
 	def __init__(self):
 		super(MainWidget, self).__init__()
+		Window.clearcolor = (1, 1, 1, 1)
 		self.current_mode = SET_TEMPO_MODE
 
 		self.info = topleft_label()
+		self.info.color = (0,0,0,1 )
 		self.add_widget(self.info)
-		
+
 		self._init_set_tempo_mode()
 
 	def _change_modes(self):
@@ -96,7 +98,7 @@ class MainWidget(BaseWidget):
 			# handle 1 or 2 channel input.
 			# if input is stereo, mono will pick left or right channel. This is used
 			# for input processing that must receive only one channel of audio (RMS, pitch, onset)
-			
+
 			# other channel data if stereo
 			other = []
 			if num_channels == 2:
@@ -131,13 +133,13 @@ class MainWidget(BaseWidget):
 		self.change_idx = 4
 		# idx of note within the part that's being changed
 		self.change_note = 0
-		
+
 		self.top_stave = TripleStave(Window.height/2)
 		# Do we use the bottom stave at all?
 		self.bottom_stave = TripleStave(10)
 		self.canvas.add(self.top_stave)
 		self.canvas.add(self.bottom_stave)
-		
+
 		barlines = get_all_barlines([self.top_stave, self.bottom_stave])
 		for b in barlines:
 			self.canvas.add(b)
@@ -146,7 +148,7 @@ class MainWidget(BaseWidget):
 		single_note_seq = [[960, 0], [960, 0], [960, 0], [960, 0]]
 		# array of SATB + solo line, each in (dur, midi) form
 		voicing_note_seqs = [single_note_seq for i in PARTS]
-		self.song = kSomewhere # TODO: remove this
+		self.song = kSomewhere_mod# TODO: remove this
 		voicing_note_seqs[4] = self.song
 		# do a sketchy thing to fix the pitch the song
 		# array of SATB + solo line, each as a collection of StaffNote objects
@@ -164,7 +166,7 @@ class MainWidget(BaseWidget):
 		self.canvas.clear()
 		for ns in self.note_sequencers:
 			ns.stop()
-		
+
 		# set volumes
 		for i in range(NUM_PARTS):
 			self.synth.cc(PART_CHANNELS[i], 7, PART_VOLUMES[i])
@@ -179,11 +181,11 @@ class MainWidget(BaseWidget):
 
 		self.canvas.add(self.top_stave)
 		self.canvas.add(self.bottom_stave)
-		
+
 		barlines = get_all_barlines([self.top_stave, self.bottom_stave])
 		for b in barlines:
 			self.canvas.add(b)
-		
+
 		# four different chord/voicing options as part: NoteSequencer data form
 		self.voicing_options = get_chords_and_voicings(self.song, self.measure_length)
 		# turn this into the following:
@@ -336,22 +338,25 @@ class MainWidget(BaseWidget):
 			if keycode[1] == 'up':
 				if self.changing:
 					staff_note = self.staff_note_parts[self.change_idx][self.change_note]
+					# use a method to just move this staff note up one semitone -> takes care of pitch and sharps
 					pitch = staff_note.pitch
-					# this seems like something that could be accomplished with the Key class
-					new_pitch =  staff_note.stave.get_pitch_up(pitch)
-					staff_note.set_pitch(new_pitch)
-					#move note up from change_idx
-					self.note_sequencers[self.change_idx].set_pitch(new_pitch, self.change_note)
+					if staff_note.check_pitch(pitch + 1):
+						new_pitch = pitch + 1
+						staff_note.set_pitch(new_pitch)
+						#move note up from change_idx
+						self.note_sequencers[self.change_idx].set_pitch(new_pitch, self.change_note)
 
 			if keycode[1] == 'down':
 				if self.changing:
 					staff_note = self.staff_note_parts[self.change_idx][self.change_note]
 					pitch = staff_note.pitch
+					if staff_note.check_pitch(pitch - 1):
+					# if (pitch - 1) >= MIN_PITCH:
 					# this seems like something that could be accomplished with the Key class
-					new_pitch =  staff_note.stave.get_pitch_down(pitch)
-					staff_note.set_pitch(new_pitch)
-					#move note up from change_idx
-					self.note_sequencers[self.change_idx].set_pitch(new_pitch, self.change_note)
+						new_pitch =  pitch - 1
+						staff_note.set_pitch(new_pitch)
+						#move note up from change_idx
+						self.note_sequencers[self.change_idx].set_pitch(new_pitch, self.change_note)
 
 			# scan through notes left or right
 			scan = lookup(keycode[1], ['left', 'right'], [-1, 1])
