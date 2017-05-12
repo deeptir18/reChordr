@@ -206,7 +206,11 @@ class ChordPredictor(object):
             # this is a little sloppy
             current_measure.append((measure_length - current_length, 0))
             measures.append(current_measure)
+        print len(measures)
+        if len(measures) >= 4:
+            return measures[0:4]
         return measures
+
 
     # calculate most consonant chords at measures[idx]
     # returns array c where c[i] = 1 means MAT_CHORDS[i] is most consonant
@@ -232,6 +236,8 @@ class ChordPredictor(object):
         probs_sorted = sorted(set(probs), reverse=True)
         top_few = []
         for i in range(few):
+            if i+1 >= len(probs_sorted):
+                break
             # take indices starting at 1 because first one is 0
             top_few.append(MAT_CHORDS[probs_unsorted.index(probs_sorted[i+1])])
         return top_few

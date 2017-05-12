@@ -148,7 +148,7 @@ class MainWidget(BaseWidget):
 		single_note_seq = [[960, 0], [960, 0], [960, 0], [960, 0]]
 		# array of SATB + solo line, each in (dur, midi) form
 		voicing_note_seqs = [single_note_seq for i in PARTS]
-		self.song = kSomewhere_mod# TODO: remove this
+		#self.song = kSomewhere_mod# TODO: remove this
 		voicing_note_seqs[4] = self.song
 		# do a sketchy thing to fix the pitch the song
 		# array of SATB + solo line, each as a collection of StaffNote objects
