@@ -31,6 +31,7 @@ PITCH_CLASS_NAMES = ['C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G', 'G#/Ab'
 
 MIN_PITCH = 40
 MAX_PITCH = 76
+MIN_TREBLE_PITCH = 60
 # constants for GUI
 COLORS = [(0, 1, 1), (1, 0, 1), (1, 1, 0), (0, 0, 1), (0, 1, 0)]
 PATCHES = [(0, 42), (0,41), (0, 40), (0,40), (0, 4)]

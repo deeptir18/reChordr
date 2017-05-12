@@ -126,6 +126,9 @@ class MainWidget(BaseWidget):
 		# TODO: need to be able to change this
 		self.measure_length = 960
 
+		# transpose self.song
+		self.transpose_song()
+
 		# variables for playback + editing
 		self.playing = False
 		self.changing = False
@@ -386,6 +389,25 @@ class MainWidget(BaseWidget):
 				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(True)
 		else:
 			pass
+
+	def transpose_song(self):
+		"""
+		If the notes in self.song cannot render in the treble clef, moves the bottom note of the sequence to middle C.
+		"""
+		print self.song
+		pitches = [note[1] for note in self.song]
+		print pitches
+		min_pitch = 60
+		for pitch in pitches:
+			if pitch !=0 and pitch < min_pitch:
+				min_pitch = pitch
+		if min_pitch < MIN_TREBLE_PITCH:
+			for i in range(len(self.song)):
+				current = self.song[i]
+				if current[1] != 0:
+					self.song[i] = (current[0], MIN_TREBLE_PITCH + (current[1] - min_pitch))
+
+		print self.song
 
 
 run(MainWidget)
