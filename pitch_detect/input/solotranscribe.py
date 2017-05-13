@@ -115,38 +115,6 @@ class PitchSnap(object):
     def on_update(self, pitch):
         self.pitches.append(pitch)
 
-# this is buggy and I'm not sure why
-def trim_notes_for_playback(notes):
-    i = len(notes)
-    while i >= 0:
-        i -= 1
-        if notes[i][1] >= 40:
-            break
-    print notes
-    print notes[0:i+1]
-    return notes[0:i+1]
-
-def trim_to_measures(notes, measures, num_measures):
-    ret = []
-    max_length = measures*num_measures
-    ret_length = 0
-    for note in notes:
-        if ret_length >= max_length:
-            print ret
-            return ret
-        elif ret_length + note[0] >= max_length:
-            new_note = (max_length - ret_length, note[1])
-            ret_length = max_length
-            ret.append(new_note)
-        else:
-            ret.append(note)
-            ret_length += note[0]
-    padding = measures*num_measures - ret_length
-    if padding > 0:
-        ret.append([padding, 0])
-    print ret
-    return ret
-
 
 def transpose_song(song):
     """
@@ -158,12 +126,41 @@ def transpose_song(song):
         if pitch !=0 and pitch < min_pitch:
             min_pitch = pitch
     if min_pitch < MIN_TREBLE_PITCH:
-        for i in range(len(self.song)):
+        for i in range(len(song)):
             current = song[i]
             if current[1] != 0:
                 song[i] = (current[0], MIN_TREBLE_PITCH + (current[1] - min_pitch))
 
     return song
 
+def trim_notes_for_playback(notes):
+    i = len(notes)
+    while i >= 0:
+        i -= 1
+        if notes[i][1] >= MIN_TREBLE_PITCH:
+            break
+    return notes[0:i+1]
+
+def trim_to_measures(notes, measure_length, num_measures):
+    ret = []
+    rest = notes[:]
+    max_length = measure_length*num_measures
+    ret_length = 0
+    for note in notes:
+        if ret_length >= max_length:
+            return ret, rest
+        elif ret_length + note[0] > max_length:
+            new_note = [max_length - ret_length, note[1]]
+            ret_length = max_length
+            rest[0] = [note[0] - (max_length - ret_length), note[1]]
+            ret.append(new_note)
+        else:
+            rest.pop(0)
+            ret.append(note)
+            ret_length += note[0]
+    padding = measure_length*num_measures - ret_length
+    if padding > 0:
+        ret.append([padding, 0])
+    return ret, rest
 
 

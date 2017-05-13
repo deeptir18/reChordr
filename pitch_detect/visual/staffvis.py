@@ -234,10 +234,10 @@ class StaffNote(InstructionGroup):
         (x1, x2, y1, y2) = self._get_corners()
         return x1 <= x and x <= x2 and y1 <= y and y <= y2
 
-def get_staff_notes(notes, note_type, part_idx, color, stave): # renders a 4 bar note sequence
+def get_staff_notes(notes, note_type, note_idx, part_idx, color, stave): # renders a 4 bar note sequence
     time_passed = 0.
     staff_notes = []
-    note_idx = 0
+    note_idx = note_idx
 
     for note in notes:
         length = note[0]

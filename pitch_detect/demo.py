@@ -84,6 +84,9 @@ class MainWidget(BaseWidget):
 		self.pitch_snap = PitchSnap()
 		self.last_pitch = Pitch(0, 1, 0, 0, None)
 
+		self.top_song = []
+		self.bottom_song = []
+
 		# used for playback
 		# argument for NoteSequencer
 		self.song = []
@@ -124,9 +127,6 @@ class MainWidget(BaseWidget):
 		self.on_key_down([None, 'spacebar'], None)
 		# render the entire stave but just change parts to be 4 measures
 
-		# transpose self.song
-		self.song = transpose_song(self.song)
-
 		# variables for playback + editing
 		self.playing = False
 		self.changing = False
@@ -148,25 +148,45 @@ class MainWidget(BaseWidget):
 
 		# gives empty voicings for SATB parts
 		single_note_seq = [[MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0]]
-		# array of SATB + solo line, each in (dur, midi) form
-		voicing_note_seqs = [single_note_seq for i in PARTS]
 		self.song = TEST_SONG# TODO: remove this
-		self.song = trim_to_measures(trim_notes_for_playback(self.song), 4, MEASURE_LENGTH)
-		voicing_note_seqs[4] = self.song
+		# transpose self.song
+		self.song = transpose_song(self.song)
+		self.song = trim_to_measures(trim_notes_for_playback(self.song), 8, MEASURE_LENGTH)[0]
+
+		self.top_song, self.bottom_song = trim_to_measures(self.song, MEASURE_LENGTH, 4)
+
+		# four different chord/voicing options as part: NoteSequencer data form
+		#self.voicing_options = get_chords_and_voicings(self.song, MEASURE_LENGTH)
+		top_voicings = get_chords_and_voicings(self.top_song, MEASURE_LENGTH)
+		bottom_voicings = get_chords_and_voicings(self.bottom_song, MEASURE_LENGTH)
+		# turn this into the following:
+		# array of SATB + solo line, each in (dur, midi) form
+		top_note_seqs = [single_note_seq for i in PARTS]
+		top_note_seqs[4] = self.top_song
+
+		bottom_note_seqs = [single_note_seq for i in PARTS]
+		bottom_note_seqs[4] = self.bottom_song
+
+		self.staff_note_parts = []
+		for i in range(NUM_PARTS):
+			top = get_staff_notes(top_note_seqs[i], PARTS[i], 0, i, COLORS[i], self.top_stave)
+			bottom = get_staff_notes(bottom_note_seqs[i], PARTS[i], len(top), i, COLORS[i], self.bottom_stave)
+			self.staff_note_parts.append(top + bottom)
+
 		# do a sketchy thing to fix the pitch the song
 		# array of SATB + solo line, each as a collection of StaffNote objects
-		self.staff_note_parts = [get_staff_notes(voicing_note_seqs[i], PARTS[i], i, COLORS[i], self.top_stave) for i in range(NUM_PARTS)]
 		for part in self.staff_note_parts:
 			for staff_note in part:
 				self.canvas.add(staff_note)
 
 		# array of SATB + solo line, each a NoteSequencer object
 		self.note_sequencers = [NoteSequencer(self.sched, self.synth, channel=PART_CHANNELS[i], patch = PATCHES[i],
-												 								 notes = voicing_note_seqs[i], loop=True, note_cb=highlight_staff_note,
+												 								 notes = top_note_seqs[i] + bottom_note_seqs[i], loop=True, note_cb=highlight_staff_note,
 												 								 cb_args = self.staff_note_parts[i]) for i in range(NUM_PARTS)]
 
 	def _init_chord_generation_mode(self, idx=0):
 		self.canvas.clear()
+		self.song = self.note_sequencers[4].notes
 		for ns in self.note_sequencers:
 			ns.stop()
 
@@ -190,22 +210,35 @@ class MainWidget(BaseWidget):
 		for b in barlines:
 			self.canvas.add(b)
 
+		self.top_song, self.bottom_song = trim_to_measures(self.song, MEASURE_LENGTH, 4)
+
 		# four different chord/voicing options as part: NoteSequencer data form
-		self.voicing_options = get_chords_and_voicings(self.song, MEASURE_LENGTH)
-		print self.voicing_options
+		#self.voicing_options = get_chords_and_voicings(self.song, MEASURE_LENGTH)
+		top_voicings = get_chords_and_voicings(self.top_song, MEASURE_LENGTH)
+		bottom_voicings = get_chords_and_voicings(self.bottom_song, MEASURE_LENGTH)
 		# turn this into the following:
 		# array of SATB + solo line, each in (dur, midi) form
-		voicing_note_seqs = self.voicing_options[idx]
-		voicing_note_seqs = [list(voicing_note_seqs[i]) for i in PARTS]
+		top_note_seqs = top_voicings[idx]
+		top_note_seqs = [list(top_note_seqs[i]) for i in PARTS]
+
+		bottom_note_seqs = bottom_voicings[idx]
+		bottom_note_seqs = [list(bottom_note_seqs[i]) for i in PARTS]
+		#voicing_note_seqs = self.voicing_options[idx]
+		#voicing_note_seqs = [list(voicing_note_seqs[i]) for i in PARTS]
 		# array of SATB + solo line, each as a collection of StaffNote objects
-		self.staff_note_parts = [get_staff_notes(voicing_note_seqs[i], PARTS[i], i, COLORS[i], self.top_stave) for i in range(NUM_PARTS)]
+		self.staff_note_parts = []
+		for i in range(NUM_PARTS):
+			top = get_staff_notes(top_note_seqs[i], PARTS[i], 0, i, COLORS[i], self.top_stave)
+			bottom = get_staff_notes(bottom_note_seqs[i], PARTS[i], len(top), i, COLORS[i], self.bottom_stave)
+			self.staff_note_parts.append(top + bottom)
+
 		for part in self.staff_note_parts:
 			for staff_note in part:
 				self.canvas.add(staff_note)
 
 		# array of SATB + solo line, each a NoteSequencer object
 		self.note_sequencers = [NoteSequencer(self.sched, self.synth, channel=PART_CHANNELS[i], patch = PATCHES[i],
-												 								 notes = voicing_note_seqs[i], loop=True, note_cb=highlight_staff_note,
+												 								 notes = top_note_seqs[i] + bottom_note_seqs[i], loop=True, note_cb=highlight_staff_note,
 												 								 cb_args = self.staff_note_parts[i]) for i in range(NUM_PARTS)]
 
 	# returns which StaffNote was clicked
@@ -237,7 +270,7 @@ class MainWidget(BaseWidget):
 			self.info.text = "Welcome to reChordr\n"
 		elif self.current_mode == CHORD_GENERATION_MODE:
 			self.metro_audio.on_update()
-			self.info.text = "Welcome to reChordr\n"
+			self.info.text = "Welcome to reChordr"
 
 	def on_key_down(self, keycode, modifiers):
 		if keycode[1] == 'n':
@@ -266,8 +299,7 @@ class MainWidget(BaseWidget):
 			# turn sequencer on/off
 			if keycode[1] == '2':
 					self.on_key_down([None, 'spacebar'], None)
-					self.song = trim_to_measures(trim_notes_for_playback(self.song), 8, MEASURE_LENGTH)
-					print self.song
+					self.song = trim_to_measures(trim_notes_for_playback(self.song), 8, MEASURE_LENGTH)[0]
 					self.seq.notes = self.song
 					self.seq.toggle()
 
