@@ -29,7 +29,7 @@ class MainWidget(BaseWidget):
 		self.current_mode = SET_TEMPO_MODE
 
 		self.info = topleft_label()
-		self.info.color = (0,0,0,1 )
+		self.info.color = (0,0,0,1)
 		self.add_widget(self.info)
 
 		self._init_set_tempo_mode()
@@ -122,12 +122,10 @@ class MainWidget(BaseWidget):
 		self.seq.stop()
 		#TODO: an elegant way to process the final note here
 		self.on_key_down([None, 'spacebar'], None)
-		# render the entire stave but just change parts to be 4 960s
-		# TODO: need to be able to change this
-		self.measure_length = 960
+		# render the entire stave but just change parts to be 4 measures
 
 		# transpose self.song
-		self.transpose_song()
+		self.song = transpose_song(self.song)
 
 		# variables for playback + editing
 		self.playing = False
@@ -139,7 +137,8 @@ class MainWidget(BaseWidget):
 
 		self.top_stave = TripleStave(Window.height/2)
 		# Do we use the bottom stave at all?
-		self.bottom_stave = TripleStave(10)
+		self.bottom_stave = TripleStave(50)
+		self.canvas.add(Color(0, 0, 0, 1))
 		self.canvas.add(self.top_stave)
 		self.canvas.add(self.bottom_stave)
 
@@ -148,10 +147,11 @@ class MainWidget(BaseWidget):
 			self.canvas.add(b)
 
 		# gives empty voicings for SATB parts
-		single_note_seq = [[960, 0], [960, 0], [960, 0], [960, 0]]
+		single_note_seq = [[MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0]]
 		# array of SATB + solo line, each in (dur, midi) form
 		voicing_note_seqs = [single_note_seq for i in PARTS]
-		#self.song = kSomewhere_mod# TODO: remove this
+		self.song = TEST_SONG# TODO: remove this
+		self.song = trim_to_measures(trim_notes_for_playback(self.song), 4, MEASURE_LENGTH)
 		voicing_note_seqs[4] = self.song
 		# do a sketchy thing to fix the pitch the song
 		# array of SATB + solo line, each as a collection of StaffNote objects
@@ -182,6 +182,7 @@ class MainWidget(BaseWidget):
 		# idx of note within the part that's being changed
 		self.change_note = 0
 
+		self.canvas.add(Color(0, 0, 0, 1))
 		self.canvas.add(self.top_stave)
 		self.canvas.add(self.bottom_stave)
 
@@ -190,7 +191,8 @@ class MainWidget(BaseWidget):
 			self.canvas.add(b)
 
 		# four different chord/voicing options as part: NoteSequencer data form
-		self.voicing_options = get_chords_and_voicings(self.song, self.measure_length)
+		self.voicing_options = get_chords_and_voicings(self.song, MEASURE_LENGTH)
+		print self.voicing_options
 		# turn this into the following:
 		# array of SATB + solo line, each in (dur, midi) form
 		voicing_note_seqs = self.voicing_options[idx]
@@ -264,7 +266,8 @@ class MainWidget(BaseWidget):
 			# turn sequencer on/off
 			if keycode[1] == '2':
 					self.on_key_down([None, 'spacebar'], None)
-					self.song = trim_notes_for_playback(self.song)
+					self.song = trim_to_measures(trim_notes_for_playback(self.song), 8, MEASURE_LENGTH)
+					print self.song
 					self.seq.notes = self.song
 					self.seq.toggle()
 
@@ -287,7 +290,7 @@ class MainWidget(BaseWidget):
 			if keycode[1] == 's':
 				# re-initialize all of these
 				# this seems hack-y since it's copy pasting bits of other methods
-				self.rhythm_detector = RhythmDetector(self.tempo, rel_rhythm)
+				self.rhythm_detector = RhythmDetector(self.tempo, RHYTHM_PROFILE)
 				self.sched = self.rhythm_detector.sched
 				# connect scheduler into audio system
 				self.metro_audio.set_generator(self.sched)
@@ -389,25 +392,5 @@ class MainWidget(BaseWidget):
 				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(True)
 		else:
 			pass
-
-	def transpose_song(self):
-		"""
-		If the notes in self.song cannot render in the treble clef, moves the bottom note of the sequence to middle C.
-		"""
-		print self.song
-		pitches = [note[1] for note in self.song]
-		print pitches
-		min_pitch = 60
-		for pitch in pitches:
-			if pitch !=0 and pitch < min_pitch:
-				min_pitch = pitch
-		if min_pitch < MIN_TREBLE_PITCH:
-			for i in range(len(self.song)):
-				current = self.song[i]
-				if current[1] != 0:
-					self.song[i] = (current[0], MIN_TREBLE_PITCH + (current[1] - min_pitch))
-
-		print self.song
-
 
 run(MainWidget)

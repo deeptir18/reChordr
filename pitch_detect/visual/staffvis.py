@@ -28,7 +28,7 @@ class Stave(InstructionGroup):
         self.lines = []
         for i in range(5):
             line_height = self.bottom_offset + i*STAVE_SPACE_HEIGHT
-            line = Line(points=(STAFF_LEFT_OFFSET, line_height, Window.width, line_height), width=LINE_WIDTH)
+            line = Line(points=(STAFF_LEFT_OFFSET, line_height, Window.width - NOTES_END, line_height), width=LINE_WIDTH)
             self.lines.append(line)
             self.add(line)
 
@@ -50,19 +50,19 @@ class TripleStave(InstructionGroup):
         bass_clef_start = starting_height
         treble_clef_start = bass_clef_start + STAVE_HEIGHT + space
 
-        bass_clef_png_start = (STAFF_LEFT_OFFSET, self.starting_height - 10)
-        bass_clef_png_size = (100, STAVE_HEIGHT)
+        bass_clef_png_start = (STAFF_LEFT_OFFSET + 5, self.starting_height)
+        bass_clef_png_size = (50, STAVE_HEIGHT*.8)
 
-        treble_clef_png_start = (STAFF_LEFT_OFFSET, treble_clef_start - 10)
-        treble_clef_png_size = (100, STAVE_HEIGHT)
+        treble_clef_png_start = (STAFF_LEFT_OFFSET + 5, treble_clef_start - 25)
+        treble_clef_png_size = (50, STAVE_HEIGHT*1.3)
 
         solo_clef_start = treble_clef_start + STAVE_HEIGHT + space
-        solo_clef_png_start = (STAFF_LEFT_OFFSET, solo_clef_start - 10)
-        solo_clef_png_size = (100, STAVE_HEIGHT)
+        solo_clef_png_start = (STAFF_LEFT_OFFSET + 5, solo_clef_start - 25)
+        solo_clef_png_size = (50, STAVE_HEIGHT*1.3)
 
-        self.bass_stave = Stave(self.get_bass_pitch_mappings(), bass_clef_start, "./visual/bass-clef.png", bass_clef_png_start, bass_clef_png_size)
-        self.treble_stave = Stave(self.get_treble_pitch_mappings(), treble_clef_start, "./visual/treble.png", treble_clef_png_start, treble_clef_png_size)
-        self.solo_stave = Stave(self.get_treble_pitch_mappings(), solo_clef_start, "./visual/treble.png", solo_clef_png_start, solo_clef_png_size)
+        self.bass_stave = Stave(self.get_bass_pitch_mappings(), bass_clef_start, "./visual/bass1.png", bass_clef_png_start, bass_clef_png_size)
+        self.treble_stave = Stave(self.get_treble_pitch_mappings(), treble_clef_start, "./visual/treble1.png", treble_clef_png_start, treble_clef_png_size)
+        self.solo_stave = Stave(self.get_treble_pitch_mappings(), solo_clef_start, "./visual/treble1.png", solo_clef_png_start, solo_clef_png_size)
 
         self.left_line = Line(points=(STAFF_LEFT_OFFSET, self.starting_height, STAFF_LEFT_OFFSET, treble_clef_start + STAVE_HEIGHT - STAVE_SPACE_HEIGHT), width=LINE_WIDTH)
         self.solo_line = Line(points=(STAFF_LEFT_OFFSET, solo_clef_start, STAFF_LEFT_OFFSET, solo_clef_start + STAVE_HEIGHT - STAVE_SPACE_HEIGHT), width=LINE_WIDTH)
@@ -132,7 +132,9 @@ def get_all_barlines(staves):
     all_barlines = []
     x_pos = NOTES_START
     # maybe not hard-code 4
-    bar_length = (Window.width - NOTES_START)/4.0
+    bar_length = (Window.width - NOTES_START - NOTES_END)/4.0
+    
+    x_pos += bar_length
     for i in range(4):
         for stave in staves:
             all_barlines.append(Barline(stave, x_pos))
@@ -174,7 +176,7 @@ class StaffNote(InstructionGroup):
         self.add(self.rectangle)
 
     def add_sharp(self):
-        self.sharp = Rectangle(pos = (self.pos[0] - 20, self.pos[1]), size = (20, STAVE_SPACE_HEIGHT), source="./visual/sharp.png")
+        self.sharp = Rectangle(pos = (self.pos[0] - 12, self.pos[1]), size = (10, STAVE_SPACE_HEIGHT), source="./visual/sharp.png")
         if self.has_sharp():
             self.add(Color(1,1,1))
             self.add(self.sharp)
@@ -239,8 +241,8 @@ def get_staff_notes(notes, note_type, part_idx, color, stave): # renders a 4 bar
 
     for note in notes:
         length = note[0]
-        start = (time_passed/(MEASURE_LENGTH*4.0))*(Window.width - NOTES_START) + NOTES_START
-        end = start + length/(MEASURE_LENGTH*4.0)*(Window.width - NOTES_START)
+        start = (time_passed/(MEASURE_LENGTH*4.0))*(Window.width - NOTES_START - NOTES_END) + NOTES_START
+        end = start + length/(MEASURE_LENGTH*4.0)*(Window.width - NOTES_START - NOTES_END)
 
         pitch = note[1]
         staff_note = StaffNote(pitch, stave, start, end, note_type, color, part_idx, note_idx)

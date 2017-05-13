@@ -1,7 +1,15 @@
 from common.clock import kTicksPerQuarter
 from kivy.core.window import Window
+Window.size = (1280, 768)
+
+TEST_SONG = [[960, 60], [960, 72], [480, 71], [240, 67], [240, 69], [480, 71], [480, 72],
+						 [960, 60], [960, 69], [960*1.5, 67]]# [960, 57], [960, 65], [480, 64], [240, 60],
+						 #[240, 62], [480, 64], [480, 65], [480, 64], [240, 59], [240, 60], [480, 62], [480, 64],
+						 #[960*2, 60], [480, 0]]  
+
+
 # FOR rendering
-MEASURE_LENGTH = 960*2
+MEASURE_LENGTH = kTicksPerQuarter*4
 
 # Controls for different modes
 SET_TEMPO_MODE = 0
@@ -48,8 +56,9 @@ NONE = "None"
 kSomewhere = [[960, 60], [960, 74], [480, 71], [240, 67], [240, 69], [480, 71], [480, 72]]
 kSomewhere_mod = [(960, 60), (480, 72), (960, 71), (240, 67), (240, 69), (480, 71), (480, 73), ]
 
-STAFF_LEFT_OFFSET = 20 # offset from the left side
+STAFF_LEFT_OFFSET = 10 # offset from the left side
 STAVE_SPACE_HEIGHT = 15 # height of a single space
 STAVE_HEIGHT = STAVE_SPACE_HEIGHT*5
 LINE_WIDTH = 1.2
-NOTES_START = 150
+NOTES_START = 70
+NOTES_END = 10

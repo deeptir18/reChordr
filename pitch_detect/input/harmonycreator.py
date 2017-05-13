@@ -207,8 +207,8 @@ class ChordPredictor(object):
             current_measure.append((measure_length - current_length, 0))
             measures.append(current_measure)
         print len(measures)
-        if len(measures) >= 4:
-            return measures[0:4]
+        if len(measures) >= 8:
+            return measures[0:8]
         return measures
 
 
@@ -244,6 +244,8 @@ class ChordPredictor(object):
 
     def get_all_possible_chord_progs(self, branching_factor=3):
         chords = []
+        if len(self.measures) >= 4:
+            branching_factor = 2
         for i in range(len(self.measures)):
             chords.append(self.get_top_few_chords(i, branching_factor))
         return list(itertools.product(*chords))
@@ -261,6 +263,7 @@ class ChordPredictor(object):
             fits.append(fit)
         fits_unsorted = fits[:]
         fits_sorted = sorted(set(fits), reverse=True)
+        few = min(few, len(fits_sorted))
         best_progs = [chord_progs[fits_unsorted.index(fits_sorted[i])] for i in range(few)]
         return best_progs
 
@@ -412,7 +415,7 @@ def create_note_sequencers(voicings, length):
 
     return {SOPRANO: sop, ALTO: alt, TENOR: ten, BASS: bas}
 
-def get_chords_and_voicings(song, measure_length=960, key=None, branching_factor=3, num_options=4):
+def get_chords_and_voicings(song, measure_length=MEASURE_LENGTH, key=None, branching_factor=3, num_options=4):
     chord_predictor = ChordPredictor(song, measure_length, key)
 
     chord_progs = chord_predictor.get_all_possible_chord_progs(branching_factor)

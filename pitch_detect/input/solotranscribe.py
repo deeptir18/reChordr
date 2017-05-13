@@ -2,6 +2,7 @@ import sys
 sys.path.append('..')
 
 from common.clock import *
+from common.constants import *
 from math import *
 from noteclass import *
 
@@ -119,6 +120,50 @@ def trim_notes_for_playback(notes):
     i = len(notes)
     while i >= 0:
         i -= 1
-        if notes[i][1] != 0:
+        if notes[i][1] >= 40:
             break
+    print notes
+    print notes[0:i+1]
     return notes[0:i+1]
+
+def trim_to_measures(notes, measures, num_measures):
+    ret = []
+    max_length = measures*num_measures
+    ret_length = 0
+    for note in notes:
+        if ret_length >= max_length:
+            print ret
+            return ret
+        elif ret_length + note[0] >= max_length:
+            new_note = (max_length - ret_length, note[1])
+            ret_length = max_length
+            ret.append(new_note)
+        else:
+            ret.append(note)
+            ret_length += note[0]
+    padding = measures*num_measures - ret_length
+    if padding > 0:
+        ret.append([padding, 0])
+    print ret
+    return ret
+
+
+def transpose_song(song):
+    """
+    If the notes in self.song cannot render in the treble clef, moves the bottom note of the sequence to middle C.
+    """
+    pitches = [note[1] for note in song]
+    min_pitch = 60
+    for pitch in pitches:
+        if pitch !=0 and pitch < min_pitch:
+            min_pitch = pitch
+    if min_pitch < MIN_TREBLE_PITCH:
+        for i in range(len(self.song)):
+            current = song[i]
+            if current[1] != 0:
+                song[i] = (current[0], MIN_TREBLE_PITCH + (current[1] - min_pitch))
+
+    return song
+
+
+
