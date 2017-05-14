@@ -46,7 +46,6 @@ class RhythmTemplate(object):
             return [(MEASURE_LENGTH, midi)] # return this note as a whole note as this rhythm template doesn't work
 
         measure = []
-        print degree_map
         for note in self.rhythm_template:
             real_degree = chord_degree_map[note[1]]
             midi = degree_map[real_degree]

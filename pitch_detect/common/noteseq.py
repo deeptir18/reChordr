@@ -110,7 +110,7 @@ class NoteSequencer(object):
         change_index = 0
         change_index_end = 1
         for i in range(len(current_song)):
-            print time_so_far, time_passed, time_passed_end
+            #print time_so_far, time_passed, time_passed_end
             if time_so_far == time_passed:
                 change_index = i
             if time_so_far == time_passed_end:
@@ -132,7 +132,7 @@ class NoteSequencer(object):
         for i in range(change_index, change_index + len(replacement)):
             replacement_offset = i - change_index
             current_song.insert(i, replacement[replacement_offset])
-        print current_song
+        #print current_song
         self.notes = current_song
 
     def replace_cb_args(self, new_cb_args):

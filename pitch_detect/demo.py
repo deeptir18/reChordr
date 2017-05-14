@@ -29,7 +29,6 @@ class MainWidget(BaseWidget):
 		Window.clearcolor = (1, 1, 1, 1)
 		self.current_mode = SET_TEMPO_MODE
 		self.info = topleft_label()
-		print self.top
 		#self.add_widget(self.info)
 
 		#self.canvas.add(Rectangle(pos=(0, Window.height - 10), size=(200, 40), source='./visual/logo.png'))
@@ -49,6 +48,21 @@ class MainWidget(BaseWidget):
 		elif self.current_mode == CHORD_GENERATION_MODE:
 			self._init_rhythm_edit_mode()
 			self.current_mode = RHYTHM_EDIT_MODE
+
+
+	def _change_modes_back(self):
+		if self.current_mode == SOLO_EDIT_MODE:
+			self._init_solo_transcribe_mode()
+			self.current_mode = SOLO_TRANSCRIBE_MODE
+		elif self.current_mode == CHORD_GENERATION_MODE:
+			self._init_solo_edit_mode()
+			self.current_mode = SOLO_EDIT_MODE
+		elif self.current_mode == RHYTHM_EDIT_MODE:
+			self._init_chord_generation_mode()
+			self.current_mode = CHORD_GENERATION_MODE
+		elif self.current_mode == SOLO_TRANSCRIBE_MODE:
+			self._init_set_tempo_mode()
+			self.current_mode = SET_TEMPO_MODE
 
 	####################
 	# Set Tempo Mode   #
@@ -163,14 +177,12 @@ class MainWidget(BaseWidget):
 
 		# gives empty voicings for SATB parts
 		single_note_seq = [[MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0]]
-		self.song = TEST_SONG2# TODO: remove this
+		self.song = TEST_SONG1# TODO: remove this
 		
 		self.song = trim_notes_for_playback(self.song)
-		print self.song
 		# transpose self.song
 		self.song = transpose_song(self.song)
 		self.song = trim_to_measures(self.song, MEASURE_LENGTH, 8)[0]
-		print self.song
 
 		self.top_song, self.bottom_song = trim_to_measures(self.song, MEASURE_LENGTH, 4)
 
@@ -205,7 +217,7 @@ class MainWidget(BaseWidget):
 
 	def _init_chord_generation_mode(self, idx=0):
 		self.canvas.clear()
-		self.canvas.add(Rectangle(pos=(40,Window.height - 260), size=(Window.width - 40, 210), source='./visual/solo_edit_mode.png'))
+		self.canvas.add(Rectangle(pos=(40,Window.height - 260), size=(Window.width - 40, 210), source='./visual/chord_generation_mode.png'))
 		self.song = self.note_sequencers[4].notes
 		for ns in self.note_sequencers:
 			ns.stop()
@@ -231,7 +243,6 @@ class MainWidget(BaseWidget):
 			self.canvas.add(b)
 
 		self.top_song, self.bottom_song = trim_to_measures(self.song, MEASURE_LENGTH, 4)
-		print self.top_song, self.bottom_song
 
 		# four different chord/voicing options as part: NoteSequencer data form
 		#self.voicing_options = get_chords_and_voicings(self.song, MEASURE_LENGTH)
@@ -242,11 +253,11 @@ class MainWidget(BaseWidget):
 		self.top_note_seqs = top_voicings[idx % len(top_voicings)]
 		self.top_note_seqs = [list(self.top_note_seqs[i]) for i in PARTS]
 		self.chord_progression = []
-		for i in range(len(top_chords[idx])):
-			self.chord_progression.append(top_chords[idx][i])
+		for i in top_chords[idx % len(top_voicings)]:
+			self.chord_progression.append(i)
 
-		for i in range(len(bottom_chords[idx])):
-			self.chord_progression.append(bottom_chords[idx][i])
+		for i in bottom_chords[idx % len(bottom_voicings)]:
+			self.chord_progression.append(i)
 
 		# print "Length of chord is {} and {}".format(len(self.chord_progression), self.chord_progression)
 		self.key = top_key
@@ -276,6 +287,7 @@ class MainWidget(BaseWidget):
 	def _init_rhythm_edit_mode(self):
 		# print "In rhythm edit mode!!!!!!!!"
 		self.canvas.clear()
+		self.canvas.add(Rectangle(pos=(40,Window.height - 260), size=(Window.width - 40, 210), source='./visual/rhythm_edit_mode.png'))
 		for ns in self.note_sequencers:
 			ns.stop()
 
@@ -351,6 +363,9 @@ class MainWidget(BaseWidget):
 	def on_key_down(self, keycode, modifiers):
 		if keycode[1] == 'n':
 			self._change_modes()
+
+		if keycode[1] == 'b':
+			self._change_modes_back()
 
 		if self.current_mode == SET_TEMPO_MODE:
 			# adjust tempo
@@ -615,11 +630,10 @@ class MainWidget(BaseWidget):
 
 		# or just replace the whole note sequencer
 		# TODO: unsure why we need to replace the whole note sequencer - something is wrong with the highlight callback
-		self.note_sequencers[self.change_idx] = NoteSequencer(self.sched, self.synth, channel=PART_CHANNELS[self.change_idx], patch = PATCHES[self.change_idx],
-												 								 notes = self.top_note_seqs[self.change_idx] + self.bottom_note_seqs[self.change_idx], loop=True, note_cb=highlight_staff_note,
-												 								 cb_args = self.staff_note_parts[self.change_idx])
+		change_seq = self.note_sequencers[self.change_idx]
+		change_seq.notes = self.top_note_seqs[self.change_idx] + self.bottom_note_seqs[self.change_idx]
+		change_seq.cb_args = self.staff_note_parts[self.change_idx]
 		# unhighlight everything?
-		for i in range(len(self.staff_note_parts[self.change_idx])):
-			self.staff_note_parts[self.change_idx][i].set_highlight(False)
+		reset_to_default(self.staff_note_parts[self.change_idx])
 
 run(MainWidget)
