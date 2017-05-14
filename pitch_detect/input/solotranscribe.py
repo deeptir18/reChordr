@@ -15,53 +15,53 @@ import numpy as np
 #beat_rhythm = [2.5, 2.5, 2.5, 3.7, 4.5, 4.5, 7.7, 7.7, 8.5, 9.7, 9.7, 9.7]
 
 class RhythmDetector(object):
-    def __init__(self, tempo, rhythm_profile):
-        super(RhythmDetector, self).__init__()
-        self.tempo = tempo
-        self.rhythm_profile = rhythm_profile
-        self.grid = len(self.rhythm_profile)
-        self.durations = []
-        self.last_beat = None
-        self.last_quantized_tick = None
-        self.last_real_tick = None
+	def __init__(self, tempo, rhythm_profile):
+		super(RhythmDetector, self).__init__()
+		self.tempo = tempo
+		self.rhythm_profile = rhythm_profile
+		self.grid = len(self.rhythm_profile)
+		self.durations = []
+		self.last_beat = None
+		self.last_quantized_tick = None
+		self.last_real_tick = None
 
-        self.tempo_map  = SimpleTempoMap(self.tempo)
-        self.sched = AudioScheduler(self.tempo_map)
+		self.tempo_map  = SimpleTempoMap(self.tempo)
+		self.sched = AudioScheduler(self.tempo_map)
 
-    # starts detecting the rhythm starting at this instant
-    def start(self):
-        now = self.sched.get_tick()
-        self.last_real_tick = now
-        snap = self.snap_note_to_grid(now)
-        self.last_quantized_tick = snap
-        self.last_beat = quantize_tick_down(now, kTicksPerQuarter)
+	# starts detecting the rhythm starting at this instant
+	def start(self):
+		now = self.sched.get_tick()
+		self.last_real_tick = now
+		snap = self.snap_note_to_grid(now)
+		self.last_quantized_tick = snap
+		self.last_beat = quantize_tick_down(now, kTicksPerQuarter)
 
-    # detects the duration of the note ending at this instant
-    def add_note(self):
-        if not self.last_beat:
-            self.start()
-        else:
-            now = self.sched.get_tick()
-            note = now - self.last_quantized_tick
-            duration = self.snap_note_to_grid(note)
-            self.last_beat += duration/kTicksPerQuarter
-            self.last_real_tick = now
-            self.last_quantized_tick += duration
-            self.durations.append(duration)
+	# detects the duration of the note ending at this instant
+	def add_note(self):
+		if not self.last_beat:
+			self.start()
+		else:
+			now = self.sched.get_tick()
+			note = now - self.last_quantized_tick
+			duration = self.snap_note_to_grid(note)
+			self.last_beat += duration/kTicksPerQuarter
+			self.last_real_tick = now
+			self.last_quantized_tick += duration
+			self.durations.append(duration)
 
-    def set_tempo(self, tempo):
-        self.tempo = tempo
-        self.tempo_map = SimpleTempoMap(self.tempo)
-        self.sched = AudioScheduler(self.tempo_map)
+	def set_tempo(self, tempo):
+		self.tempo = tempo
+		self.tempo_map = SimpleTempoMap(self.tempo)
+		self.sched = AudioScheduler(self.tempo_map)
 
-    # takes in a tick, and snaps the tick to a recognizable beat
-    # according to rhythm_profile
-    def snap_note_to_grid(self, tick):
-        beats = int(tick/kTicksPerQuarter)
-        tick = tick - beats*kTicksPerQuarter
-        tick = float(tick*self.grid)/float(kTicksPerQuarter)
-        snap = bisect_left(self.rhythm_profile, tick)
-        return beats*kTicksPerQuarter + snap*kTicksPerQuarter/self.grid
+	# takes in a tick, and snaps the tick to a recognizable beat
+	# according to rhythm_profile
+	def snap_note_to_grid(self, tick):
+		beats = int(tick/kTicksPerQuarter)
+		tick = tick - beats*kTicksPerQuarter
+		tick = float(tick*self.grid)/float(kTicksPerQuarter)
+		snap = bisect_left(self.rhythm_profile, tick)
+		return beats*kTicksPerQuarter + snap*kTicksPerQuarter/self.grid
 
 
 class PitchSnap(object):
@@ -162,5 +162,3 @@ def trim_to_measures(notes, measure_length, num_measures):
     if padding > 0:
         ret.append([padding, 0])
     return ret, rest
-
-
