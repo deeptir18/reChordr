@@ -86,3 +86,21 @@ class NoteSequencer(object):
         if idx >= 0 and idx < len(self.notes):
             (dur, pitch) = self.notes[idx]
             self.notes[idx] = (dur, new_pitch)
+
+    def set_rhythm(self, new_rhythm, idx):
+        if idx >= 0 and idx < len(self.notes):
+            (dur, pitch) = self.notes[idx]
+            self.notes[idx] = (new_rhythm, pitch)
+
+    def clear_empty_notes(self):
+        new_notes = []
+        for (dur, pitch) in self.notes:
+            if dur != 0:
+                new_notes.append((dur, pitch))
+        self.notes = new_notes
+
+    #debugging method
+    def sum_rhythms(self):
+        rh = [r for (r, p) in self.notes]
+        return sum(rh)
+

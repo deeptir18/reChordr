@@ -21,7 +21,7 @@ PATH_TO_DATA = '../data/'
 
 # constants for metronome + rhythm detect
 METRO_CHANNEL = 0
-DEFAULT_TEMPO = 60
+DEFAULT_TEMPO = 100
 RHYTHM_PROFILE = [2.5, 2.5, 2.5, 3.7, 4.5, 4.5, 7.7, 7.7, 8.3, 9.5, 9.5, 9.5]
 PATH_TO_SYNTH = PATH_TO_DATA + 'FluidR3_GM.sf2'
 
