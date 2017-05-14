@@ -8,6 +8,90 @@ from math import *
 
 from random import randint, random
 import numpy as np
+class RhythmTemplate(object):
+    """
+    For a single SATB part gives rhythms and chord degrees corresponding to the base note.
+    rhythm_template: [(note_length, chord_degree), (note_length, chord_degree)...]
+    example: for triplet arpeggios [(TRIPLET, 1), (TRIPLET, 3), (TRIPLET, 5)]*4
+    note that the "degree" in the 2nd half of the tuple corresponds to 1 3 5 in the chord
+    """
+    def __init__(self, rhythm_template):
+        super(RhythmTemplate, self).__init__()
+        self.degrees = []
+        if rhythm_template == DEFAULT:
+            self.rhythm_template =[(WHOLE, 1)]
+            self.default = True
+        else:
+            self.default = False
+            self.rhythm_template = rhythm_template
+            for note in self.rhythm_template:
+                if note[1] not in self.degrees:
+                    self.degrees.append(note[1])
+                    self.degrees.sort()
+
+    def create_bar(self, chord, key, midi):
+        """
+        Takes the rhythm template and creates a bar based on this chord given this rhythm template.
+        Chord: chord object this voice note is a part of
+        Key: Key for song (so we can call chord_in_key function)
+        pitchclass: pitch class object that represents the given midi note
+        midi: actual midi pitch this voice was voiced at.
+        """
+        if self.default:
+            return [(MEASURE_LENGTH, midi)]
+        degree_map = self.get_degree_map(chord, key, midi)
+        # map 1 3 5 to the chord degrees
+        chord_degree_map = {1: chord.get_chord_pitches()[0], 3: chord.get_chord_pitches()[1], 5: chord.get_chord_pitches()[2]}
+        if len(degree_map) == 0:
+            return [(MEASURE_LENGTH, midi)] # return this note as a whole note as this rhythm template doesn't work
+
+        measure = []
+        print degree_map
+        for note in self.rhythm_template:
+            real_degree = chord_degree_map[note[1]]
+            midi = degree_map[real_degree]
+            measure.append((note[0], midi))
+        return measure
+
+
+    def get_degree_map(self, chord, key, midi):
+        # gets a degree map for the degrees in our template and a range around our midi pitch
+        # maps 1,3,5 -> midi pitches for this rhythm template
+        chord_in_key = chord.get_chord_in_key(key) # this is in order of the pitch classes
+        chord_pitches = chord.get_chord_pitches() # these are the scale degrees of the chord: i.e (0,4,7)
+        assert(len(chord_in_key) == len(chord_pitches), "The length of chord pitches and chord in key do not match! Oh no!")
+        # take this midi and figure out which degree in the chord it is
+
+        # map 1 3 5 to the chord degrees
+        chord_degree_map = {1: chord.get_chord_pitches()[0], 3: chord.get_chord_pitches()[1], 5: chord.get_chord_pitches()[2]}
+
+        ret = {}
+        deg = 0
+        for i in range(len(chord_in_key)):
+            pitch_class = chord_in_key[i]
+            degree = self.degrees[i]
+            chord_degree = chord_degree_map[degree]
+            if pitch_class.contains(midi):
+                deg = self.degrees[i]
+
+        if deg not in self.degrees:
+            return ret # if it's an empty dictionary, caller will know this rhythm template is not possible
+        pitch_range = [midi - 12, midi + 12] # octave below and above
+        for i in range(len(chord_in_key)):
+            # iterate and find the closest chord pitch for each
+            pitch_class = chord_in_key[i]
+            pitches_in_range = pitch_class.get_notes_in_range(pitch_range)
+            closest_pitch = None
+            min_distance = float("inf")
+            for pitch in pitches_in_range:
+                if (abs(pitch - midi) < min_distance):
+                    min_distance = abs(pitch - midi)
+                    closest_pitch = pitch
+
+            ret[chord_pitches[i]] = closest_pitch
+
+        assert(len(ret) == len(chord_in_key))
+        return ret
 
 # takes in int representing midi pitch
 class PitchClass(object):
@@ -72,6 +156,9 @@ class Chord(object):
         else:
             self.chord_pitches = []
 
+    def get_chord_pitches(self):
+        return self.chord_pitches
+
     def contains(self, midi, key):
         for x in self.chord_pitches:
             if PitchClass(key.pitch + self.semitones_above_key + x).contains(midi):
@@ -79,10 +166,11 @@ class Chord(object):
         return False
 
     def get_chord_in_key(self, key):
+        # returns in order of degrees of chord
         pitches = []
-        for i in range(12):
-            if self.contains(i, key):
-                pitches.append(PitchClass(i))
+        for degree in self.chord_pitches: # ordered with root first
+            note_pitch_class = PitchClass(key.pitch + self.semitones_above_key + degree)
+            pitches.append(note_pitch_class)
         return pitches
 
     def get_consonance(self, measure, key):
@@ -438,4 +526,4 @@ def get_chords_and_voicings(song, measure_length=MEASURE_LENGTH, key=None, branc
         dictionary = create_note_sequencers(voicings, measure_length)
         dictionary[SOLO] = song
         top_voicings.append(dictionary)
-    return top_voicings
+    return top_voicings, top_few, chord_predictor.key # top_voicings is midi pitches, top_few is a list of chord progressions

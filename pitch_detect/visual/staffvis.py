@@ -133,7 +133,7 @@ def get_all_barlines(staves):
     x_pos = NOTES_START
     # maybe not hard-code 4
     bar_length = (Window.width - NOTES_START - NOTES_END)/4.0
-    
+
     x_pos += bar_length
     for i in range(4):
         for stave in staves:
