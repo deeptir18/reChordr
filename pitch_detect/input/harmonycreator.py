@@ -206,7 +206,6 @@ class ChordPredictor(object):
             # this is a little sloppy
             current_measure.append((measure_length - current_length, 0))
             measures.append(current_measure)
-        print len(measures)
         if len(measures) >= 8:
             return measures[0:8]
         return measures

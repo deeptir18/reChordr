@@ -21,16 +21,18 @@ from math import *
 
 from kivy.graphics.instructions import InstructionGroup
 from kivy.graphics import Color, Rectangle, Line
+from kivy.uix.label import Label
 
 class MainWidget(BaseWidget):
 	def __init__(self):
 		super(MainWidget, self).__init__()
 		Window.clearcolor = (1, 1, 1, 1)
 		self.current_mode = SET_TEMPO_MODE
-
 		self.info = topleft_label()
-		self.info.color = (0,0,0,1)
-		self.add_widget(self.info)
+		print self.top
+		#self.add_widget(self.info)
+
+		#self.canvas.add(Rectangle(pos=(0, Window.height - 10), size=(200, 40), source='./visual/logo.png'))
 
 		self._init_set_tempo_mode()
 
@@ -65,12 +67,21 @@ class MainWidget(BaseWidget):
 
 		# create the metronome:
 		self.metro = Metronome(self.sched, self.synth, METRO_CHANNEL)
-
+		self.metro.start()
+		self.canvas.clear()
+		self.canvas.add(Rectangle(pos=(0,Window.height - 672), size=(Window.width, 672), source='./visual/set_tempo_mode.png'))
+		self.label = Label(text = str(self.tempo), valign='top', font_size='100sp',
+              pos=(Window.width * 0.7, Window.height * -0.2),
+              text_size=(Window.width, Window.height))
+		self.label.color = (0, 0, 0, 1)
+		self.add_widget(self.label)
 	##########################
-	# Solo Transcribe Mode   #
+	# Solo Transcribe Mode   #d
 	##########################
 	def _init_solo_transcribe_mode(self):
 		self.metro.stop()
+		self.canvas.clear()
+		self.canvas.add(Rectangle(pos=(0,Window.height - 1087), size=(Window.width, 987), source='./visual/solo_transcribe_mode.png'))
 
 		# Pitch detector
 		self.pitch_detect_audio = Audio(NUM_CHANNELS, input_func=self.receive_audio)
@@ -121,10 +132,11 @@ class MainWidget(BaseWidget):
 	# Solo Edit Mode   #
 	####################
 	def _init_solo_edit_mode(self):
+		self.canvas.clear()
+		self.canvas.add(Rectangle(pos=(40,Window.height - 260), size=(Window.width - 40, 210), source='./visual/solo_edit_mode.png'))
 		self.metro.stop()
 		self.seq.stop()
 		#TODO: an elegant way to process the final note here
-		self.on_key_down([None, 'spacebar'], None)
 		# render the entire stave but just change parts to be 4 measures
 
 		# variables for playback + editing
@@ -137,7 +149,7 @@ class MainWidget(BaseWidget):
 
 		self.top_stave = TripleStave(Window.height/2)
 		# Do we use the bottom stave at all?
-		self.bottom_stave = TripleStave(50)
+		self.bottom_stave = TripleStave(100)
 		self.canvas.add(Color(0, 0, 0, 1))
 		self.canvas.add(self.top_stave)
 		self.canvas.add(self.bottom_stave)
@@ -148,10 +160,14 @@ class MainWidget(BaseWidget):
 
 		# gives empty voicings for SATB parts
 		single_note_seq = [[MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0]]
-		self.song = TEST_SONG# TODO: remove this
+		self.song = TEST_SONG2# TODO: remove this
+		
+		self.song = trim_notes_for_playback(self.song)
+		print self.song
 		# transpose self.song
 		self.song = transpose_song(self.song)
-		self.song = trim_to_measures(trim_notes_for_playback(self.song), 8, MEASURE_LENGTH)[0]
+		self.song = trim_to_measures(self.song, MEASURE_LENGTH, 8)[0]
+		print self.song
 
 		self.top_song, self.bottom_song = trim_to_measures(self.song, MEASURE_LENGTH, 4)
 
@@ -186,6 +202,7 @@ class MainWidget(BaseWidget):
 
 	def _init_chord_generation_mode(self, idx=0):
 		self.canvas.clear()
+		self.canvas.add(Rectangle(pos=(40,Window.height - 260), size=(Window.width - 40, 210), source='./visual/solo_edit_mode.png'))
 		self.song = self.note_sequencers[4].notes
 		for ns in self.note_sequencers:
 			ns.stop()
@@ -211,6 +228,7 @@ class MainWidget(BaseWidget):
 			self.canvas.add(b)
 
 		self.top_song, self.bottom_song = trim_to_measures(self.song, MEASURE_LENGTH, 4)
+		print self.top_song, self.bottom_song
 
 		# four different chord/voicing options as part: NoteSequencer data form
 		#self.voicing_options = get_chords_and_voicings(self.song, MEASURE_LENGTH)
@@ -218,10 +236,10 @@ class MainWidget(BaseWidget):
 		bottom_voicings = get_chords_and_voicings(self.bottom_song, MEASURE_LENGTH)
 		# turn this into the following:
 		# array of SATB + solo line, each in (dur, midi) form
-		top_note_seqs = top_voicings[idx]
+		top_note_seqs = top_voicings[idx % len(top_voicings)]
 		top_note_seqs = [list(top_note_seqs[i]) for i in PARTS]
 
-		bottom_note_seqs = bottom_voicings[idx]
+		bottom_note_seqs = bottom_voicings[idx % len(bottom_voicings)]
 		bottom_note_seqs = [list(bottom_note_seqs[i]) for i in PARTS]
 		#voicing_note_seqs = self.voicing_options[idx]
 		#voicing_note_seqs = [list(voicing_note_seqs[i]) for i in PARTS]
@@ -253,24 +271,17 @@ class MainWidget(BaseWidget):
 		# Set text
 		if self.current_mode == SET_TEMPO_MODE:
 			self.metro_audio.on_update()
-			self.info.text = "Welcome to reChordr\nUse the left/right arrows to pick a tempo\n"
-			self.info.text += "Current tempo: %d\n" % self.tempo
-			self.info.text += "Press 'N' to go to the next step"
 		elif self.current_mode == SOLO_TRANSCRIBE_MODE:
 			self.metro_audio.on_update()
 			self.pitch_detect_audio.on_update()
-			self.info.text = "Welcome to reChordr\n"
-			self.info.text += "Press 1 to toggle metronome at tempo %d\n" % self.tempo
-			self.info.text += "Sing and tap the spacebar at the start of each note\n"
-			self.info.text += "Press 2 to play transcribed notes\n"
-			self.info.text += "Press 'S' to start over\n"
-			self.info.text += "Press 'N' to go to the next step"
 		elif self.current_mode == SOLO_EDIT_MODE:
 			self.metro_audio.on_update()
-			self.info.text = "Welcome to reChordr\n"
-		elif self.current_mode == CHORD_GENERATION_MODE:
+			self.info.text = "Welcome to reChordr"
+			self.info.text += '\nfps:%d' % kivyClock.get_fps()
+		else:# self.current_mode == CHORD_GENERATION_MODE:
 			self.metro_audio.on_update()
 			self.info.text = "Welcome to reChordr"
+			self.info.text += '\nfps:%d' % kivyClock.get_fps()
 
 	def on_key_down(self, keycode, modifiers):
 		if keycode[1] == 'n':
@@ -289,17 +300,18 @@ class MainWidget(BaseWidget):
 				self.sched.set_generator(self.synth)
 
 				self.metro = Metronome(self.sched, self.synth)
+				self.label.text = str(self.tempo)
 				self.metro.start()
 
 		elif self.current_mode == SOLO_TRANSCRIBE_MODE:
 			# turn metronome on/off
-			if keycode[1] == '1':
+			if keycode[1] == 'm':
 					self.metro.toggle()
 
 			# turn sequencer on/off
-			if keycode[1] == '2':
+			if keycode[1] == 'p':
 					self.on_key_down([None, 'spacebar'], None)
-					self.song = trim_to_measures(trim_notes_for_playback(self.song), 8, MEASURE_LENGTH)[0]
+					self.song = trim_to_measures(trim_notes_for_playback(self.song), MEASURE_LENGTH, 8)[0]
 					self.seq.notes = self.song
 					self.seq.toggle()
 
@@ -316,7 +328,7 @@ class MainWidget(BaseWidget):
 						self.last_pitch = pitch_obj
 						noteinfo = NoteInfo(pitch_obj, duration)
 						self.note_song.add_to_solo_voice(noteinfo)
-						self.song.append((int(duration), int(pitch)))
+						self.song.append([int(duration), int(pitch)])
 
 			# start over recording
 			if keycode[1] == 's':

@@ -3,7 +3,7 @@ import sys
 sys.path.append('..')
 from common.constants import *
 from kivy.graphics.instructions import InstructionGroup
-from kivy.graphics import Color, Rectangle, Line
+from kivy.graphics import Color, Rectangle, Line, RoundedRectangle
 from input.harmonycreator import PitchClass
 
 # TODO: hook this up to RHYTHMS and to note sequencers -> and try to display an entire song
@@ -45,19 +45,19 @@ class TripleStave(InstructionGroup):
     def __init__(self, starting_height):
         super(TripleStave, self).__init__()
         # draw two single staves with an additional bar on the side, and a third on top for the solo
-        space = 15
+        space = 30
         self.starting_height = starting_height
         bass_clef_start = starting_height
         treble_clef_start = bass_clef_start + STAVE_HEIGHT + space
 
-        bass_clef_png_start = (STAFF_LEFT_OFFSET + 5, self.starting_height)
-        bass_clef_png_size = (50, STAVE_HEIGHT*.8)
+        bass_clef_png_start = (STAFF_LEFT_OFFSET + 5, self.starting_height + 10)
+        bass_clef_png_size = (50, STAVE_HEIGHT*.7)
 
-        treble_clef_png_start = (STAFF_LEFT_OFFSET + 5, treble_clef_start - 25)
+        treble_clef_png_start = (STAFF_LEFT_OFFSET + 5, treble_clef_start - 30)
         treble_clef_png_size = (50, STAVE_HEIGHT*1.3)
 
         solo_clef_start = treble_clef_start + STAVE_HEIGHT + space
-        solo_clef_png_start = (STAFF_LEFT_OFFSET + 5, solo_clef_start - 25)
+        solo_clef_png_start = (STAFF_LEFT_OFFSET + 5, solo_clef_start - 30)
         solo_clef_png_size = (50, STAVE_HEIGHT*1.3)
 
         self.bass_stave = Stave(self.get_bass_pitch_mappings(), bass_clef_start, "./visual/bass1.png", bass_clef_png_start, bass_clef_png_size)
@@ -157,7 +157,6 @@ class StaffNote(InstructionGroup):
         self.length = x_end - padding - self.x_start
 
 
-
         self.part_idx = part_idx
         self.note_idx = note_idx
 
@@ -172,7 +171,7 @@ class StaffNote(InstructionGroup):
         self.color = Color(color[0], color[1], color[2], .5)
         self.default_color = color
         self.add(self.color)
-        self.rectangle = Rectangle(pos = self.pos, size=self.size)
+        self.rectangle = RoundedRectangle(pos = self.pos, size=self.size)
         self.add(self.rectangle)
 
     def add_sharp(self):
