@@ -7,7 +7,7 @@
 # Released under the MIT License (http://opensource.org/licenses/MIT)
 #
 #####################################################################
-
+from common.constants import *
 from common.clock import kTicksPerQuarter, quantize_tick_up
 
 class NoteSequencer(object):
@@ -104,3 +104,64 @@ class NoteSequencer(object):
         rh = [r for (r, p) in self.notes]
         return sum(rh)
 
+    def get_song(self):
+        return self.notes
+
+    def replace_song_at_index(self, index, replacement, MEASURE_LENGTH, current_bar):
+        current_song = self.notes
+        # need to replace EVERYTHING in this MEASURE
+        # iterate through everything including and until this index - and add up the time.
+        # index we want to start at is at beginning of MEASURE
+        # remove all the notes in 'current bar'
+        # print "PASSED IN CURRENT BAR IS {}".format(current_bar)
+        time_passed = MEASURE_LENGTH*current_bar
+        time_passed_end = MEASURE_LENGTH*(current_bar + 1)
+        # print "BEGIN {}, END time {}".format(time_passed, time_passed_end)
+        time_so_far = 0
+        change_index = 0
+        change_index_end = 1
+        for i in range(len(current_song)):
+            print time_so_far, time_passed, time_passed_end
+            if time_so_far == time_passed:
+                change_index = i
+            if time_so_far == time_passed_end:
+                change_index_end = i
+            time_so_far += current_song[i][0]
+        # print "CHANGE INDEX: {}, change_index_end: {}".format(change_index, change_index_end)
+        # print "CURRENT SONG BEFORE SLCIING: {}".format(current_song)
+        # find the index of the note where the next measure starts
+        begin_slice = current_song[0:change_index]
+        end_slice = current_song[change_index_end:]
+        current_song = []
+        for tup in begin_slice:
+            current_song.append(tup)
+        for tup in end_slice:
+            current_song.append(tup)
+        # print "BEGIN SLICE: {}, end_slice {}".format(begin_slice, end_slice)
+        # current_song = current_song[0:change_index].extend(current_song[change_index_end:])
+        # print "CURRENT SONG AFTER SLCIING: {}".format(current_song)
+        for i in range(change_index, change_index + len(replacement)):
+            replacement_offset = i - change_index
+            current_song.insert(i, replacement[replacement_offset])
+        print current_song
+        self.notes = current_song
+
+    def replace_cb_args(self, new_cb_args):
+        # print self.cb_args, new_cb_args, "NEW CB ARG!!"
+        self.cb_arg = new_cb_args
+
+    def set_song(self, new_song):
+        self.notes = new_song
+
+    def get_half_melody(self, top):
+        half_point = WHOLE * 4
+        time_passed = 0
+        half_index = 0
+        for i in range(len(self.notes)):
+            if time_passed == half_point:
+                half_index = i
+            time_passed += self.notes[i][0]
+        if top:
+            return self.notes[:half_index]
+        else:
+            return self.notes[half_index:]

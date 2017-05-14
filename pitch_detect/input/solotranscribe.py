@@ -65,55 +65,53 @@ class RhythmDetector(object):
 
 
 class PitchSnap(object):
-	def __init__(self):
-		super(PitchSnap, self).__init__()
-		self.started = False
-		self.pitches = []
-		self.rel_pitches = []
-		self.abs_pitches = []
-		self.low_pitch = 40
-		self.high_pitch = 77
-		self.last_pitch = 0
+    def __init__(self):
+        super(PitchSnap, self).__init__()
+        self.started = False
+        self.pitches = []
+        self.rel_pitches = []
+        self.abs_pitches = []
+        self.last_pitch = 0
 
-	def start(self):
-		self.pitches = []
-		self.started = True
+    def start(self):
+        self.pitches = []
+        self.started = True
 
-	def snap_pitch(self):
-		if not self.started:
-			self.start()
-		self.pitches = np.array(self.pitches)
-		pre_len = len(self.pitches)
-		self.pitches = [a for a in self.pitches if a > self.low_pitch and a < self.high_pitch]
-		if pre_len > 0 and len(self.pitches)/float(pre_len) < .5:
-			abs_pitch = 0
-			abs_confidence = len(self.pitches)/float(pre_len)
-			self.abs_pitches.append((abs_pitch, abs_confidence))
-			rel_pitch = -1*round(self.last_pitch)
-			rel_confidence = len(self.pitches)/float(pre_len)
-			self.rel_pitches.append((rel_pitch, rel_confidence))
-			self.last_pitch = 0
-		elif len(self.pitches) > 0:
+    def snap_pitch(self):
+        if not self.started:
+            self.start()
+        self.pitches = np.array(self.pitches)
+        pre_len = len(self.pitches)
+        self.pitches = [a for a in self.pitches if a > MIN_PITCH and a < MAX_PITCH]
+        if pre_len > 0 and len(self.pitches)/float(pre_len) < .25:
+            abs_pitch = 0
+            abs_confidence = len(self.pitches)/float(pre_len)
+            self.abs_pitches.append((abs_pitch, abs_confidence))
+            rel_pitch = -1*round(self.last_pitch)
+            rel_confidence = len(self.pitches)/float(pre_len)
+            self.rel_pitches.append((rel_pitch, rel_confidence))
+            self.last_pitch = 0
+        elif len(self.pitches) > 0:
 
-			avg = np.percentile(self.pitches, 50)
+            avg = np.percentile(self.pitches, 50)
 
-			abs_pitch = round(avg)
-			abs_array = [a for a in self.pitches if a >= abs_pitch - .5 and a <= abs_pitch + .5]
-			abs_confidence = float(len(abs_array))/float(len(self.pitches))
-			self.abs_pitches.append((abs_pitch, abs_confidence))
+            abs_pitch = round(avg)
+            abs_array = [a for a in self.pitches if a >= abs_pitch - .5 and a <= abs_pitch + .5]
+            abs_confidence = float(len(abs_array))/float(len(self.pitches))
+            self.abs_pitches.append((abs_pitch, abs_confidence))
 
-			rel_pitch = round(avg - self.last_pitch)
-			rel_array = [a for a in self.pitches if a - self.last_pitch >= rel_pitch - .5 and a - self.last_pitch <= rel_pitch + .5]
-			#rel_confidence = 0
-			rel_confidence = float(len(rel_array))/float(len(self.pitches))
-			self.rel_pitches.append((rel_pitch, rel_confidence))
+            rel_pitch = round(avg - self.last_pitch)
+            rel_array = [a for a in self.pitches if a - self.last_pitch >= rel_pitch - .5 and a - self.last_pitch <= rel_pitch + .5]
+            #rel_confidence = 0
+            rel_confidence = float(len(rel_array))/float(len(self.pitches))
+            self.rel_pitches.append((rel_pitch, rel_confidence))
 
-			self.last_pitch = avg
-		self.pitches = []
+            self.last_pitch = avg
+        self.pitches = []
 
 
-	def on_update(self, pitch):
-		self.pitches.append(pitch)
+    def on_update(self, pitch):
+        self.pitches.append(pitch)
 
 
 def transpose_song(song):
@@ -151,14 +149,16 @@ def trim_to_measures(notes, measure_length, num_measures):
             return ret, rest
         elif ret_length + note[0] > max_length:
             new_note = [max_length - ret_length, note[1]]
-            ret_length = max_length
             rest[0] = [note[0] - (max_length - ret_length), note[1]]
             ret.append(new_note)
+            ret_length = max_length
+            return ret, rest
         else:
             rest.pop(0)
             ret.append(note)
             ret_length += note[0]
-    padding = measure_length*num_measures - ret_length
+    padding = max_length - ret_length
+    padding = padding % measure_length
     if padding > 0:
         ret.append([padding, 0])
     return ret, rest
