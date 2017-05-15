@@ -670,7 +670,7 @@ class MainWidget(BaseWidget):
 					# enter changing mode
 					self.on_key_down([None, 'c'], None)
 				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(False)
-				self.change_idx, self.change_note = c[0], c[1]
+				(self.change_idx, self.change_note, self.changing) = c
 				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(True)
 				self.get_current_bar()
 		else:
