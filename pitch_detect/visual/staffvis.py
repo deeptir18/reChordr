@@ -165,7 +165,7 @@ class StaffNote(InstructionGroup):
         self.part_idx = part_idx
         self.note_idx = note_idx
 
-        if self.pitch == 0: # rests
+        if self.pitch == 0 or self.rhythm <= 0: # rests
             self.size = (0,0)
             self.pos = (0,0)
         else:
@@ -176,12 +176,12 @@ class StaffNote(InstructionGroup):
         self.color = Color(color[0], color[1], color[2], .5)
         self.default_color = color
         self.add(self.color)
+        if self.pitch == 0 or self.rhythm <= 0:
+            self.color.a = 0
         self.rectangle = RoundedRectangle(pos = self.pos, size=self.size)
         self.add(self.rectangle)
 
     def add_sharp(self):
-        if self.rhythm <= 0:
-            return
         self.sharp = Rectangle(pos = (self.pos[0] - 12, self.pos[1]), size = (10, STAVE_SPACE_HEIGHT), source="./visual/sharp.png")
         if self.has_sharp():
             self.add(Color(1,1,1))
@@ -224,14 +224,18 @@ class StaffNote(InstructionGroup):
         self.x_start = start + self.padding
         self.length = end - self.padding - self.x_start
 
-        if self.pitch == 0: # rests
+        if self.pitch == 0 or self.rhythm <= 0: # rests
             self.size = (0,0)
             self.pos = (0,0)
+            self.color.a = 0
         else:
             self.size = (self.length, STAVE_SPACE_HEIGHT)
             self.pos = (self.x_start, self.get_height())
 
     def set_rhythm(self, new_length, dir):
+        if new_length <= 0:
+            self.remove_sharp()
+
         if dir == "left":
             diff = new_length - self.rhythm
             self.time_passed -= diff

@@ -571,6 +571,14 @@ class MainWidget(BaseWidget):
 					self.note_sequencers[self.change_idx].set_rhythm(staff_note_right.rhythm - diff, count)
 					staff_note_right.set_rhythm(staff_note_right.rhythm - diff, "left")
 
+			self.note_sequencers[self.change_idx].clear_empty_notes()
+			self.staff_note_parts[self.change_idx] = self.clear_empty_notes(self.staff_note_parts[self.change_idx])
+			self.note_sequencers[self.change_idx].replace_cb_args(self.staff_note_parts[self.change_idx])
+			if self.changing:
+				if self.change_note > 0:
+					self.staff_note_parts[self.change_idx][self.change_note-1].set_highlight(False)
+				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(True)
+
 		if self.current_mode == CHORD_GENERATION_MODE:
 			o = lookup(keycode[1], '1234', '0123')
 			if o:
@@ -700,6 +708,15 @@ class MainWidget(BaseWidget):
 					staff_note_right.set_rhythm(staff_note_right.rhythm-diff, "left")
 					self.note_sequencers[self.change_idx].set_rhythm(staff_note_right.rhythm-diff, self.change_note+1)
 	'''
+	def clear_empty_notes(self, staff_notes):
+		new_staff_notes = []
+		note_idx = 0
+		for s in staff_notes:
+			if s.rhythm > 0:
+				s.note_idx = note_idx
+				new_staff_notes.append(s)
+				note_idx += 1
+		return new_staff_notes
 
 	def get_current_bar(self):
 		# get the current bar depending on the change_note

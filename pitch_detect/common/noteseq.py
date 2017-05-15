@@ -162,7 +162,7 @@ class NoteSequencer(object):
 
     def replace_cb_args(self, new_cb_args):
         # print self.cb_args, new_cb_args, "NEW CB ARG!!"
-        self.cb_arg = new_cb_args
+        self.cb_args = new_cb_args
 
     def set_song(self, new_song):
         self.notes = new_song
