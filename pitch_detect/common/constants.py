@@ -1,7 +1,7 @@
 from common.clock import kTicksPerQuarter
 from kivy.core.window import Window
 Window.fullscreen = True
-Window.size = (1280*3/2, 768*3/2)
+Window.size = (2000, 1200)
 
 TEST_SONG1 = [[960, 60], [960, 72], [480, 71], [240, 67], [240, 69], [480, 71], [480, 72],
 						 [960, 60], [960, 69], [960*2, 67], [960, 57], [960, 65], [480, 64], [240, 60],

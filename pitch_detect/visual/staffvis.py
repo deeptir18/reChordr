@@ -274,12 +274,13 @@ class StaffNote(InstructionGroup):
         return (x1 <= x and x <= x2 and y1 <= y and y <= y2)
 
     def horizontal_intersects(self, pos):
-        (x, y) = pos
-        (x1, x2, y1, y2) = self._get_corners()
-        if x1 <= x and x <= 0.5*(x2+x1):
-            return "left"
-        if 0.5*(x2+x1) <= x and x <= x2:
-            return "right"
+        if self.intersects(pos):
+            (x, y) = pos
+            (x1, x2, y1, y2) = self._get_corners()
+            if x <= 0.5*(x2+x1):
+                return "left"
+            else:
+                return "right"
 
     #maybe this should go in the Stave class idk
     '''

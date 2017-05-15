@@ -86,7 +86,7 @@ class MainWidget(BaseWidget):
 		self.metro = Metronome(self.sched, self.synth, METRO_CHANNEL)
 		self.metro.start()
 		self.canvas.clear()
-		self.canvas.add(Rectangle(pos=(0,Window.height - 672), size=(Window.width, 672), source='./visual/set_tempo_mode.png'))
+		self.canvas.add(Rectangle(pos=(40,0), size=(Window.width - 40, Window.height - 30), source='./visual/set_tempo_mode.png'))
 		self.label = Label(text = str(self.tempo), valign='top', font_size='100sp',
               pos=(Window.width * 0.7, Window.height * -0.2),
               text_size=(Window.width, Window.height))
@@ -98,7 +98,7 @@ class MainWidget(BaseWidget):
 	def _init_solo_transcribe_mode(self):
 		self.metro.stop()
 		self.canvas.clear()
-		self.canvas.add(Rectangle(pos=(0,Window.height - 1087), size=(Window.width, 987), source='./visual/solo_transcribe_mode.png'))
+		self.canvas.add(Rectangle(pos=(40,0), size=(Window.width - 40, Window.height - 30), source='./visual/solo_transcribe_mode.png'))
 
 		# Pitch detector
 		self.pitch_detect_audio = Audio(NUM_CHANNELS, input_func=self.receive_audio)
@@ -150,7 +150,7 @@ class MainWidget(BaseWidget):
 	####################
 	def _init_solo_edit_mode(self):
 		self.canvas.clear()
-		self.canvas.add(Rectangle(pos=(40,Window.height - 260), size=(Window.width - 40, 210), source='./visual/solo_edit_mode.png'))
+		self.canvas.add(Rectangle(pos=(40,0), size=(Window.width - 40, Window.height - 30), source='./visual/solo_edit_mode.png'))
 		self.metro.stop()
 		self.seq.stop()
 		if len(self.song) >= 0:
@@ -177,7 +177,7 @@ class MainWidget(BaseWidget):
 
 			# gives empty voicings for SATB parts
 			single_note_seq = [[MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0]]
-			#self.song = TEST_SONG1# TODO: remove this
+			self.song = TEST_SONG1# TODO: remove this
 			self.song = trim_notes_for_playback(self.song)
 			# transpose self.song
 			self.song = transpose_song(self.song)
@@ -213,7 +213,7 @@ class MainWidget(BaseWidget):
 
 	def _init_chord_generation_mode(self, idx=0):
 		self.canvas.clear()
-		self.canvas.add(Rectangle(pos=(40,Window.height - 260), size=(Window.width - 40, 210), source='./visual/chord_generation_mode.png'))
+		self.canvas.add(Rectangle(pos=(40,0), size=(Window.width - 40, Window.height - 30), source='./visual/chord_generation_mode.png'))
 
 		self.note_sequencers[4].clear_empty_notes()
 		self.song = self.note_sequencers[4].notes
@@ -298,7 +298,7 @@ class MainWidget(BaseWidget):
 	def _init_rhythm_edit_mode(self):
 		# print "In rhythm edit mode!!!!!!!!"
 		self.canvas.clear()
-		self.canvas.add(Rectangle(pos=(40,Window.height - 260), size=(Window.width - 40, 210), source='./visual/rhythm_edit_mode.png'))
+		self.canvas.add(Rectangle(pos=(40,0), size=(Window.width - 40, Window.height - 30), source='./visual/rhythm_edit_mode.png'))
 		for ns in self.note_sequencers:
 			ns.stop()
 
@@ -346,6 +346,8 @@ class MainWidget(BaseWidget):
 
 	# returns which StaffNote was clicked
 	def find_part(self, pos):
+		print Window.width, Window.height
+		print self.staff_note_parts[0][-1]._get_corners(), pos
 		for part in self.staff_note_parts:
 			for staff_note in part:
 				if staff_note.intersects(pos):
@@ -660,7 +662,7 @@ class MainWidget(BaseWidget):
 					# enter changing mode
 					self.on_key_down([None, 'c'], None)
 				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(False)
-				(self.change_idx, self.change_note, self.changing) = c
+				self.change_idx, self.change_note = c[0], c[1]
 				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(True)
 				self.get_current_bar()
 		else:
