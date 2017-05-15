@@ -153,19 +153,19 @@ class MainWidget(BaseWidget):
 		self.canvas.add(Rectangle(pos=(40,Window.height - 260), size=(Window.width - 40, 210), source='./visual/solo_edit_mode.png'))
 		self.metro.stop()
 		self.seq.stop()
+
 		#TODO: an elegant way to process the final note here
 		# render the entire stave but just change parts to be 4 measures
 
 		# variables for playback + editing
 		self.playing = False
-		self.changing = False
+		self.changing = 0
 		# which part is being changed
 		self.change_idx = 4
 		# idx of note within the part that's being changed
 		self.change_note = 0
 
 		self.top_stave = TripleStave(Window.height/2)
-		# Do we use the bottom stave at all?
 		self.bottom_stave = TripleStave(100)
 		self.canvas.add(Color(0, 0, 0, 1))
 		self.canvas.add(self.top_stave)
@@ -177,7 +177,7 @@ class MainWidget(BaseWidget):
 
 		# gives empty voicings for SATB parts
 		single_note_seq = [[MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0]]
-		self.song = TEST_SONG1# TODO: remove this
+		#self.song = TEST_SONG1# TODO: remove this
 		
 		self.song = trim_notes_for_playback(self.song)
 		# transpose self.song
@@ -199,9 +199,11 @@ class MainWidget(BaseWidget):
 		bottom_note_seqs[4] = self.bottom_song
 
 		self.staff_note_parts = []
+		self.top_num_notes = []
 		for i in range(NUM_PARTS):
 			top = get_staff_notes(top_note_seqs[i], PARTS[i], 0, i, COLORS[i], self.top_stave)
 			bottom = get_staff_notes(bottom_note_seqs[i], PARTS[i], len(top), i, COLORS[i], self.bottom_stave)
+			self.top_num_notes.append(len(top_note_seqs[i]))
 			self.staff_note_parts.append(top + bottom)
 
 		# do a sketchy thing to fix the pitch the song
@@ -211,13 +213,14 @@ class MainWidget(BaseWidget):
 				self.canvas.add(staff_note)
 
 		# array of SATB + solo line, each a NoteSequencer object
-		self.note_sequencers = [NoteSequencer(self.sched, self.synth, channel=PART_CHANNELS[i], patch = PATCHES[i],
-												 								 notes = top_note_seqs[i] + bottom_note_seqs[i], loop=True, note_cb=highlight_staff_note,
-												 								 cb_args = self.staff_note_parts[i]) for i in range(NUM_PARTS)]
+		self.note_sequencers = [NoteSequencer(self.sched, self.synth, channel=PART_CHANNELS[i], patch = PATCHES[i], 
+						notes=top_note_seqs[i] + bottom_note_seqs[i], loop=True, note_cb=highlight_staff_note, cb_args=self.staff_note_parts[i]) for i in range(NUM_PARTS)]
 
 	def _init_chord_generation_mode(self, idx=0):
 		self.canvas.clear()
 		self.canvas.add(Rectangle(pos=(40,Window.height - 260), size=(Window.width - 40, 210), source='./visual/chord_generation_mode.png'))
+
+		self.note_sequencers[4].clear_empty_notes()
 		self.song = self.note_sequencers[4].notes
 		for ns in self.note_sequencers:
 			ns.stop()
@@ -228,7 +231,7 @@ class MainWidget(BaseWidget):
 
 		# variables for playback + editing
 		self.playing = False
-		self.changing = False
+		self.changing = 0
 		# which part is being changed
 		self.change_idx = 4
 		# idx of note within the part that's being changed
@@ -338,7 +341,7 @@ class MainWidget(BaseWidget):
 		for part in self.staff_note_parts:
 			for staff_note in part:
 				if staff_note.intersects(pos):
-					return (staff_note.part_idx, staff_note.note_idx)
+					return (staff_note.part_idx, staff_note.note_idx, staff_note.horizontal_intersects(pos))
 		return None
 
 	def on_update(self):
@@ -436,7 +439,7 @@ class MainWidget(BaseWidget):
 			if keycode[1] == 'p':
 				for part in self.staff_note_parts:
 					reset_to_default(part)
-				self.changing = False
+				self.changing = 0
 				self.playing = not self.playing
 				for ns in self.note_sequencers:
 					# currently plays from the beginning
@@ -450,7 +453,10 @@ class MainWidget(BaseWidget):
 				for ns in self.note_sequencers:
 					# currently plays from the beginning
 					ns.stop()
-				self.changing = not self.changing
+				if self.changing != 0:
+					self.changing = 0
+				else:
+					self.changing = 1
 				if self.changing:
 					# TODO: have it from the current place?
 					self.change_note = 0
@@ -487,6 +493,61 @@ class MainWidget(BaseWidget):
 						staff_note.set_pitch(new_pitch)
 						#move note up from change_idx
 						self.note_sequencers[self.change_idx].set_pitch(new_pitch, self.change_note)
+			
+		if self.current_mode == SOLO_EDIT_MODE:
+			scan = lookup(keycode[1], ['left', 'right'], [-1, 1])
+			if scan:
+				diff = scan*kTicksPerQuarter/12
+				if self.changing == "left":
+					if self.change_note == 0:
+						return
+					if self.change_note == self.top_num_notes[self.change_idx]:
+						return
+					count = self.change_note-1
+					staff_note_left = self.staff_note_parts[self.change_idx][count]
+					while count > 0 and staff_note_left.rhythm + diff < 0:
+						count -= 1
+						staff_note_left = self.staff_note_parts[self.change_idx][count]
+					if staff_note_left.rhythm + diff < 0:
+						return
+
+					staff_note = self.staff_note_parts[self.change_idx][self.change_note]
+					if staff_note.rhythm - diff < 0:
+						return
+
+					self.note_sequencers[self.change_idx].set_rhythm(staff_note.rhythm - diff, self.change_note)
+					staff_note.set_rhythm(staff_note.rhythm - diff, "left")
+
+					self.note_sequencers[self.change_idx].set_rhythm(staff_note_left.rhythm + diff, count)
+					staff_note_left.set_rhythm(staff_note_left.rhythm + diff, "right")
+
+				elif self.changing == "right":
+					if self.change_note == len(self.staff_note_parts[self.change_idx])-1:
+						return
+					if self.change_note == self.top_num_notes[self.change_idx]-1:
+						return
+					count = self.change_note+1
+					staff_note_right = self.staff_note_parts[self.change_idx][count]
+					while count < len(self.staff_note_parts[self.change_idx])-1 and staff_note_right.rhythm - diff < 0:
+						count += 1
+						staff_note_right = self.staff_note_parts[self.change_idx][count]
+					if staff_note_right.rhythm - diff < 0:
+						return
+
+					staff_note = self.staff_note_parts[self.change_idx][self.change_note]
+					if staff_note.rhythm + diff < 0:
+						return
+
+					self.note_sequencers[self.change_idx].set_rhythm(staff_note.rhythm + diff, self.change_note)
+					staff_note.set_rhythm(staff_note.rhythm + diff, "right")
+
+					self.note_sequencers[self.change_idx].set_rhythm(staff_note_right.rhythm - diff, count)
+					staff_note_right.set_rhythm(staff_note_right.rhythm - diff, "left")
+
+		if self.current_mode == CHORD_GENERATION_MODE:
+			o = lookup(keycode[1], '1234', '0123')
+			if o:
+				self._init_chord_generation_mode(int(o))
 
 			# scan through notes left or right
 			scan = lookup(keycode[1], ['left', 'right'], [-1, 1])
@@ -496,7 +557,6 @@ class MainWidget(BaseWidget):
 					self.change_note += scan
 					self.change_note %= len(self.staff_note_parts[self.change_idx])
 					self.staff_note_parts[self.change_idx][self.change_note].set_highlight(True)
-
 
 		elif self.current_mode == RHYTHM_EDIT_MODE:
 			# toggle playback
@@ -566,10 +626,43 @@ class MainWidget(BaseWidget):
 					# enter changing mode
 					self.on_key_down([None, 'c'], None)
 				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(False)
-				(self.change_idx, self.change_note) = c
+				(self.change_idx, self.change_note, self.changing) = c
 				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(True)
 		else:
 			pass
+	'''
+	def on_touch_move(self, touch) :
+		if self.current_mode == SOLO_EDIT_MODE or self.current_mode == CHORD_GENERATION_MODE:
+			(x, y) = touch.pos
+			if self.changing == "middle":
+				staff_note = self.staff_note_parts[self.change_idx][self.change_note]
+				# this seems like something that could be accomplished with the Key class
+				new_pitch =  staff_note.get_nearest_pitch(y)
+				staff_note.set_pitch(new_pitch)
+				#move note up from change_idx
+				self.note_sequencers[self.change_idx].set_pitch(new_pitch, self.change_note)
+			else:
+				if self.changing == "left" and self.change_note == 0:
+					pass
+				if self.changing == "right" and self.change_note == len(self.staff_note_parts[self.change_idx])-1:
+					pass
+				staff_note = self.staff_note_parts[self.change_idx][self.change_note]
+				# this seems like something that could be accomplished with the Key class
+				(new_rhythm, diff) = staff_note.get_nearest_rhythm(x, self.changing)
+				staff_note.set_rhythm(new_rhythm, self.changing)
+				
+				#move note up from change_idx
+				
+				self.note_sequencers[self.change_idx].set_rhythm(new_rhythm, self.change_note)
+				if self.changing == "left":
+					staff_note_left = self.staff_note_parts[self.change_idx][self.change_note-1]
+					staff_note_left.set_rhythm(staff_note_left.rhythm-diff, "right")
+					self.note_sequencers[self.change_idx].set_rhythm(staff_note_left.rhythm-diff, self.change_note-1)
+				if self.changing == "right":
+					staff_note_right = self.staff_note_parts[self.change_idx][self.change_note+1]
+					staff_note_right.set_rhythm(staff_note_right.rhythm-diff, "left")
+					self.note_sequencers[self.change_idx].set_rhythm(staff_note_right.rhythm-diff, self.change_note+1)
+	'''
 
 	def get_current_bar(self):
 		# get the current bar depending on the change_note

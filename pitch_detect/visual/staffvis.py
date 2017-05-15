@@ -5,6 +5,7 @@ from common.constants import *
 from kivy.graphics.instructions import InstructionGroup
 from kivy.graphics import Color, Rectangle, Line, RoundedRectangle
 from input.harmonycreator import PitchClass
+import numpy as np
 
 # TODO: hook this up to RHYTHMS and to note sequencers -> and try to display an entire song
 # then add movement with a nowbar so it plays through the note sequence
@@ -70,6 +71,8 @@ class TripleStave(InstructionGroup):
         self.treble_stave_start = treble_clef_start
         self.bass_stave_start = bass_clef_start
         self.solo_stave_start = solo_clef_start
+        self.pitches = self.get_bass_pitch_mappings().keys()
+        self.pitches.extend(self.get_treble_pitch_mappings().keys())
 
         self.add(self.bass_stave)
         self.add(self.treble_stave)
@@ -145,17 +148,19 @@ def get_all_barlines(staves):
 
 
 class StaffNote(InstructionGroup):
-    def __init__(self, pitch, stave, x_start, x_end, note_type, color, part_idx, note_idx):
+    def __init__(self, pitch, rhythm, stave, time_passed, x_start, x_end, note_type, color, part_idx, note_idx):
         super(StaffNote, self).__init__()
         self.pitch = pitch
+        self.rhythm = rhythm
         self.stave = stave
+
+        self.time_passed = time_passed
+        self.padding = .25*(x_end - x_start)
+        self.x_start = x_start + self.padding
+        
+        self.length = x_end - self.padding - self.x_start
+        
         self.note_type = note_type
-
-        padding = .25*(x_end - x_start)
-        self.x_start = x_start + padding
-
-        self.length = x_end - padding - self.x_start
-
 
         self.part_idx = part_idx
         self.note_idx = note_idx
@@ -175,6 +180,8 @@ class StaffNote(InstructionGroup):
         self.add(self.rectangle)
 
     def add_sharp(self):
+        if self.rhythm <= 0:
+            return
         self.sharp = Rectangle(pos = (self.pos[0] - 12, self.pos[1]), size = (10, STAVE_SPACE_HEIGHT), source="./visual/sharp.png")
         if self.has_sharp():
             self.add(Color(1,1,1))
@@ -212,6 +219,39 @@ class StaffNote(InstructionGroup):
         self.rectangle.pos = self.pos
         self.add_sharp()
 
+    def set_rhythm_params(self, start, end):
+        self.padding = .25*(end - start)
+        self.x_start = start + self.padding
+        self.length = end - self.padding - self.x_start
+
+        if self.pitch == 0: # rests
+            self.size = (0,0)
+            self.pos = (0,0)
+        else:
+            self.size = (self.length, STAVE_SPACE_HEIGHT)
+            self.pos = (self.x_start, self.get_height())
+
+    def set_rhythm(self, new_length, dir):
+        if dir == "left":
+            diff = new_length - self.rhythm
+            self.time_passed -= diff
+            self.rhythm = new_length
+            start = (self.time_passed/(MEASURE_LENGTH*4.0))*(Window.width - NOTES_START) + NOTES_START
+            end = start + new_length/(MEASURE_LENGTH*4.0)*(Window.width - NOTES_START)
+            self.set_rhythm_params(start, end)
+            (self.rectangle.pos, self.rectangle.size) = (self.pos, self.size)
+        else:
+            self.rhythm = new_length
+            
+            start = (self.time_passed/(MEASURE_LENGTH*4.0))*(Window.width - NOTES_START) + NOTES_START
+            end = start + new_length/(MEASURE_LENGTH*4.0)*(Window.width - NOTES_START)
+            self.set_rhythm_params(start, end)
+            (self.rectangle.pos, self.rectangle.size) = (self.pos, self.size)
+            
+        if self.has_sharp():
+            self.remove_sharp()
+            self.add_sharp()
+
     # currently not using this
     def move_pitch(self, semitones_up):
         self.set_pitch(self.pitch + semitones_up)
@@ -231,7 +271,59 @@ class StaffNote(InstructionGroup):
     def intersects(self, pos):
         (x, y) = pos
         (x1, x2, y1, y2) = self._get_corners()
-        return x1 <= x and x <= x2 and y1 <= y and y <= y2
+        return (x1 <= x and x <= x2 and y1 <= y and y <= y2)
+
+    def horizontal_intersects(self, pos):
+        (x, y) = pos
+        (x1, x2, y1, y2) = self._get_corners()
+        if x1 <= x and x <= 0.5*(x2+x1):
+            return "left"
+        if 0.5*(x2+x1) <= x and x <= x2:
+            return "right"
+
+    #maybe this should go in the Stave class idk
+    '''
+    def get_nearest_pitch(self, height):
+        nearest_distance = float('inf')
+        nearest_pitch = -1
+        for p in self.stave.pitches:
+            print(self.stave.get_pitch_height(p, self.note_type))
+            if nearest_distance > abs(self.stave.get_pitch_height(p, self.note_type)+STAVE_SPACE_HEIGHT/2-height):
+                nearest_distance = abs(self.stave.get_pitch_height(p, self.note_type)+STAVE_SPACE_HEIGHT/2-height)
+                nearest_pitch = p
+        return nearest_pitch
+    '''
+    '''
+    def get_nearest_rhythm(self, x_pos, dir):
+        rhythms = kTicksPerQuarter*np.array([0, 1./4, 1./3, 1./2, 2./3, 3./4])
+        if dir == "left":
+            start = x_pos - self.padding
+            end = start + new_length/(960*4.0)*(Window.width - NOTES_START)
+            #0.75*end + 0.25*start stays constant
+            end = self.length + self.x_start
+            new_rhythm = (end - x_pos)*(960*4.0)/(Window.width - NOTES_START)
+            n = int(new_rhythm/kTicksPerQuarter)
+            r = new_rhythm%kTicksPerQuarter
+            nearest_distance = float('inf')
+            nearest_rhythm = -1
+            for rh in rhythms:
+                if nearest_distance > abs(rh-r):
+                    nearest_distance = abs(rh-r)
+                    nearest_rhythm = rh
+            new_rhythm = n*kTicksPerQuarter + nearest_rhythm
+        else:
+            new_rhythm = (x_pos - self.x_start)*(960*4.0)/(Window.width - NOTES_START)
+            n = int(new_rhythm/kTicksPerQuarter)
+            r = new_rhythm%kTicksPerQuarter
+            nearest_distance = float('inf')
+            nearest_rhythm = -1
+            for rh in rhythms:
+                if nearest_distance > abs(rh-r):
+                    nearest_distance = abs(rh-r)
+                    nearest_rhythm = rh
+            new_rhythm = n*kTicksPerQuarter + nearest_rhythm
+        return (new_rhythm, new_rhythm-self.rhythm)
+        '''
 
 def get_staff_notes(notes, note_type, note_idx, part_idx, color, stave): # renders a 4 bar note sequence
     time_passed = 0.
@@ -244,7 +336,7 @@ def get_staff_notes(notes, note_type, note_idx, part_idx, color, stave): # rende
         end = start + length/(MEASURE_LENGTH*4.0)*(Window.width - NOTES_START - NOTES_END)
 
         pitch = note[1]
-        staff_note = StaffNote(pitch, stave, start, end, note_type, color, part_idx, note_idx)
+        staff_note = StaffNote(pitch, length, stave, time_passed, start, end, note_type, color, part_idx, note_idx)
         staff_notes.append(staff_note)
         time_passed += length
         note_idx += 1
