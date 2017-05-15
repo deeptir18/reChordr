@@ -43,6 +43,7 @@ class RhythmTemplate(object):
         # map 1 3 5 to the chord degrees
         chord_degree_map = {1: chord.get_chord_pitches()[0], 3: chord.get_chord_pitches()[1], 5: chord.get_chord_pitches()[2]}
         if len(degree_map) == 0:
+            print "RETURNING DEFAULT BECAUSE NO DEGREE MAP"
             return [(MEASURE_LENGTH, midi)] # return this note as a whole note as this rhythm template doesn't work
 
         measure = []
@@ -62,8 +63,10 @@ class RhythmTemplate(object):
         # take this midi and figure out which degree in the chord it is
 
         # map 1 3 5 to the chord degrees
+        print "Chord pitches in degree map are {} and midi pitch is {}".format(chord_pitches, midi)
         chord_degree_map = {1: chord.get_chord_pitches()[0], 3: chord.get_chord_pitches()[1], 5: chord.get_chord_pitches()[2]}
-
+        for pitch_class in chord_in_key:
+            print 'CHORD IN KEY IS {}'.format(pitch_class)
         ret = {}
         deg = 0
         for i in range(len(chord_in_key)):
@@ -71,11 +74,14 @@ class RhythmTemplate(object):
             degree = self.degrees[i]
             chord_degree = chord_degree_map[degree]
             if pitch_class.contains(midi):
+                print "PITCH CLASS {} did contain midid".format(pitch_class)
                 deg = self.degrees[i]
 
         if deg not in self.degrees:
             return ret # if it's an empty dictionary, caller will know this rhythm template is not possible
-        pitch_range = [midi - 12, midi + 12] # octave below and above
+        pitch_range = [midi - 12, midi + 24] # octave below and above
+        if midi-12 < MIN_PITCH:
+            pitch_range[0] = MIN_PITCH
         for i in range(len(chord_in_key)):
             # iterate and find the closest chord pitch for each
             pitch_class = chord_in_key[i]

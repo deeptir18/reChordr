@@ -133,6 +133,8 @@ def transpose_song(song):
 
 def trim_notes_for_playback(notes):
     i = len(notes)
+    if i == 0:
+        return []
     while i >= 0:
         i -= 1
         if notes[i][1] >= MIN_TREBLE_PITCH:

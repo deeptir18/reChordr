@@ -32,7 +32,7 @@ class MainWidget(BaseWidget):
 		#self.add_widget(self.info)
 
 		#self.canvas.add(Rectangle(pos=(0, Window.height - 10), size=(200, 40), source='./visual/logo.png'))
-
+		self.part_volumes = PART_VOLUMES # default
 		self._init_set_tempo_mode()
 
 	def _change_modes(self):
@@ -153,68 +153,63 @@ class MainWidget(BaseWidget):
 		self.canvas.add(Rectangle(pos=(40,Window.height - 260), size=(Window.width - 40, 210), source='./visual/solo_edit_mode.png'))
 		self.metro.stop()
 		self.seq.stop()
+		if len(self.song) >= 0:
+			#TODO: an elegant way to process the final note here
+			# render the entire stave but just change parts to be 4 measures
 
-		#TODO: an elegant way to process the final note here
-		# render the entire stave but just change parts to be 4 measures
+			# variables for playback + editing
+			self.playing = False
+			self.changing = 0
+			# which part is being changed
+			self.change_idx = 4
+			# idx of note within the part that's being changed
+			self.change_note = 0
 
-		# variables for playback + editing
-		self.playing = False
-		self.changing = 0
-		# which part is being changed
-		self.change_idx = 4
-		# idx of note within the part that's being changed
-		self.change_note = 0
+			self.top_stave = TripleStave(Window.height/2)
+			self.bottom_stave = TripleStave(100)
+			self.canvas.add(Color(0, 0, 0, 1))
+			self.canvas.add(self.top_stave)
+			self.canvas.add(self.bottom_stave)
 
-		self.top_stave = TripleStave(Window.height/2)
-		self.bottom_stave = TripleStave(100)
-		self.canvas.add(Color(0, 0, 0, 1))
-		self.canvas.add(self.top_stave)
-		self.canvas.add(self.bottom_stave)
+			barlines = get_all_barlines([self.top_stave, self.bottom_stave])
+			for b in barlines:
+				self.canvas.add(b)
 
-		barlines = get_all_barlines([self.top_stave, self.bottom_stave])
-		for b in barlines:
-			self.canvas.add(b)
+			# gives empty voicings for SATB parts
+			single_note_seq = [[MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0]]
+			#self.song = TEST_SONG1# TODO: remove this
+			self.song = trim_notes_for_playback(self.song)
+			# transpose self.song
+			self.song = transpose_song(self.song)
+			self.song = trim_to_measures(self.song, MEASURE_LENGTH, 8)[0]
 
-		# gives empty voicings for SATB parts
-		single_note_seq = [[MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0], [MEASURE_LENGTH, 0]]
-		#self.song = TEST_SONG1# TODO: remove this
-		
-		self.song = trim_notes_for_playback(self.song)
-		# transpose self.song
-		self.song = transpose_song(self.song)
-		self.song = trim_to_measures(self.song, MEASURE_LENGTH, 8)[0]
+			self.top_song, self.bottom_song = trim_to_measures(self.song, MEASURE_LENGTH, 4)
 
-		self.top_song, self.bottom_song = trim_to_measures(self.song, MEASURE_LENGTH, 4)
+			# turn this into the following:
+			# array of SATB + solo line, each in (dur, midi) form
+			top_note_seqs = [single_note_seq for i in PARTS]
+			top_note_seqs[4] = self.top_song
 
-		# four different chord/voicing options as part: NoteSequencer data form
-		#self.voicing_options = get_chords_and_voicings(self.song, MEASURE_LENGTH)
-		top_voicings = get_chords_and_voicings(self.top_song, MEASURE_LENGTH)
-		bottom_voicings = get_chords_and_voicings(self.bottom_song, MEASURE_LENGTH)
-		# turn this into the following:
-		# array of SATB + solo line, each in (dur, midi) form
-		top_note_seqs = [single_note_seq for i in PARTS]
-		top_note_seqs[4] = self.top_song
+			bottom_note_seqs = [single_note_seq for i in PARTS]
+			bottom_note_seqs[4] = self.bottom_song
 
-		bottom_note_seqs = [single_note_seq for i in PARTS]
-		bottom_note_seqs[4] = self.bottom_song
+			self.staff_note_parts = []
+			self.top_num_notes = []
+			for i in range(NUM_PARTS):
+				top = get_staff_notes(top_note_seqs[i], PARTS[i], 0, i, COLORS[i], self.top_stave)
+				bottom = get_staff_notes(bottom_note_seqs[i], PARTS[i], len(top), i, COLORS[i], self.bottom_stave)
+				self.top_num_notes.append(len(top_note_seqs[i]))
+				self.staff_note_parts.append(top + bottom)
 
-		self.staff_note_parts = []
-		self.top_num_notes = []
-		for i in range(NUM_PARTS):
-			top = get_staff_notes(top_note_seqs[i], PARTS[i], 0, i, COLORS[i], self.top_stave)
-			bottom = get_staff_notes(bottom_note_seqs[i], PARTS[i], len(top), i, COLORS[i], self.bottom_stave)
-			self.top_num_notes.append(len(top_note_seqs[i]))
-			self.staff_note_parts.append(top + bottom)
+			# do a sketchy thing to fix the pitch the song
+			# array of SATB + solo line, each as a collection of StaffNote objects
+			for part in self.staff_note_parts:
+				for staff_note in part:
+					self.canvas.add(staff_note)
 
-		# do a sketchy thing to fix the pitch the song
-		# array of SATB + solo line, each as a collection of StaffNote objects
-		for part in self.staff_note_parts:
-			for staff_note in part:
-				self.canvas.add(staff_note)
-
-		# array of SATB + solo line, each a NoteSequencer object
-		self.note_sequencers = [NoteSequencer(self.sched, self.synth, channel=PART_CHANNELS[i], patch = PATCHES[i], 
-						notes=top_note_seqs[i] + bottom_note_seqs[i], loop=True, note_cb=highlight_staff_note, cb_args=self.staff_note_parts[i]) for i in range(NUM_PARTS)]
+			# array of SATB + solo line, each a NoteSequencer object
+			self.note_sequencers = [NoteSequencer(self.sched, self.synth, channel=PART_CHANNELS[i], patch = PATCHES[i], 
+							notes=top_note_seqs[i] + bottom_note_seqs[i], loop=True, note_cb=highlight_staff_note, cb_args=self.staff_note_parts[i]) for i in range(NUM_PARTS)]
 
 	def _init_chord_generation_mode(self, idx=0):
 		self.canvas.clear()
@@ -227,7 +222,7 @@ class MainWidget(BaseWidget):
 
 		# set volumes
 		for i in range(NUM_PARTS):
-			self.synth.cc(PART_CHANNELS[i], 7, PART_VOLUMES[i])
+			self.synth.cc(PART_CHANNELS[i], 7, self.part_volumes[i])
 
 		# variables for playback + editing
 		self.playing = False
@@ -249,8 +244,13 @@ class MainWidget(BaseWidget):
 
 		# four different chord/voicing options as part: NoteSequencer data form
 		#self.voicing_options = get_chords_and_voicings(self.song, MEASURE_LENGTH)
+		top_voicings = get_chords_and_voicings(self.top_song, MEASURE_LENGTH)
+		if len(self.bottom_song) > 0:
+			bottom_voicings, bottom_chords, bottom_key = get_chords_and_voicings(self.bottom_song, MEASURE_LENGTH)
+		else:
+			bottom_voicings, bottom_chords, bottom_key = [], [], Key(60, MAJOR)
+
 		top_voicings, top_chords, top_key = get_chords_and_voicings(self.top_song, MEASURE_LENGTH)
-		bottom_voicings, bottom_chords, bottom_key = get_chords_and_voicings(self.bottom_song, MEASURE_LENGTH)
 		# turn this into the following:
 		# array of SATB + solo line, each in (dur, midi) form
 		self.top_note_seqs = top_voicings[idx % len(top_voicings)]
@@ -259,20 +259,28 @@ class MainWidget(BaseWidget):
 		for i in top_chords[idx % len(top_voicings)]:
 			self.chord_progression.append(i)
 
-		for i in bottom_chords[idx % len(bottom_voicings)]:
-			self.chord_progression.append(i)
+		if len(bottom_chords) > 0:
+			for i in bottom_chords[idx % len(bottom_voicings)]:
+				self.chord_progression.append(i)
 
-		# print "Length of chord is {} and {}".format(len(self.chord_progression), self.chord_progression)
+		print "Length of chord is {}".format(len(self.chord_progression))
+
 		self.key = top_key
-		self.bottom_note_seqs = bottom_voicings[idx % len(bottom_voicings)]
-		self.bottom_note_seqs = [list(self.bottom_note_seqs[i]) for i in PARTS]
+		if len(bottom_voicings) > 0:
+			self.bottom_note_seqs = bottom_voicings[idx % len(bottom_voicings)]
+			self.bottom_note_seqs = [list(self.bottom_note_seqs[i]) for i in PARTS]
+		else:
+			self.bottom_note_seqs = [[], [], [], [], []]
 		#voicing_note_seqs = self.voicing_options[idx]
 		#voicing_note_seqs = [list(voicing_note_seqs[i]) for i in PARTS]
 		# array of SATB + solo line, each as a collection of StaffNote objects
 		self.staff_note_parts = []
 		for i in range(NUM_PARTS):
 			self.top_thing = get_staff_notes(self.top_note_seqs[i], PARTS[i], 0, i, COLORS[i], self.top_stave)
-			self.bottom_thing = get_staff_notes(self.bottom_note_seqs[i], PARTS[i], len(self.top_thing), i, COLORS[i], self.bottom_stave)
+			if len(bottom_voicings) > 0:
+				self.bottom_thing = get_staff_notes(self.bottom_note_seqs[i], PARTS[i], len(self.top_thing), i, COLORS[i], self.bottom_stave)
+			else:
+				self.bottom_thing = []
 			self.staff_note_parts.append(self.top_thing + self.bottom_thing)
 
 		for part in self.staff_note_parts:
@@ -332,7 +340,7 @@ class MainWidget(BaseWidget):
 		# have a boolean which tells you if this bar is rhythmed and which rhythm template it is
 		self.rhythm_templates = []
 		for i in range(len(self.note_sequencers)):
-			rhythm_templates= [0]*4
+			rhythm_templates= [0]*8
 			self.rhythm_templates.append(rhythm_templates)# default, everyone is whole notes
 		# print self.rhythm_templates
 
@@ -480,6 +488,15 @@ class MainWidget(BaseWidget):
 						new_pitch = pitch + 1
 						staff_note.set_pitch(new_pitch)
 						#move note up from change_idx
+						# MAKE SURE TO MODIFY the top and bottom note sequencers
+
+						if self.current_mode == CHORD_GENERATION_MODE:
+							current_bar = self.get_current_bar()
+							if current_bar < 4: # use the top
+								self.top_note_seqs[self.change_idx][self.change_note] = (self.top_note_seqs[self.change_idx][self.change_note][0], new_pitch)
+							else:
+								self.bottom_note_seqs[self.change_idx][self.change_note] = (self.bottom_note_seqs[self.change_idx][self.change_note - len(self.top_note_seqs)][0], new_pitch)
+
 						self.note_sequencers[self.change_idx].set_pitch(new_pitch, self.change_note)
 
 			if keycode[1] == 'down':
@@ -491,6 +508,14 @@ class MainWidget(BaseWidget):
 					# this seems like something that could be accomplished with the Key class
 						new_pitch =  pitch - 1
 						staff_note.set_pitch(new_pitch)
+						# change the note seq objects
+
+						if self.current_mode == CHORD_GENERATION_MODE:
+							current_bar = self.get_current_bar()
+							if current_bar < 4: # use the top
+								self.top_note_seqs[self.change_idx][self.change_note] = (self.top_note_seqs[self.change_idx][self.change_note][0], new_pitch)
+							else:
+								self.bottom_note_seqs[self.change_idx][self.change_note] = (self.bottom_note_seqs[self.change_idx][self.change_note - len(self.top_note_seqs)][0], new_pitch)
 						#move note up from change_idx
 						self.note_sequencers[self.change_idx].set_pitch(new_pitch, self.change_note)
 			
@@ -582,7 +607,14 @@ class MainWidget(BaseWidget):
 					# TODO: have it from the current place?
 					self.change_note = 0
 
-				# print "self.changing_note is {}".format(self.change_note)
+			# adjust volume:
+			if keycode[1] == "up":
+				if self.changing:
+					self.modify_volume(min(self.part_volumes[self.change_idx] + 5, 120))
+
+			if keycode[1] == "down":
+				if self.changing:
+					self.modify_volume(max(self.part_volumes[self.change_idx] - 5, 10))
 
 			if keycode[1] == "right":
 				if not self.changing:
@@ -591,19 +623,21 @@ class MainWidget(BaseWidget):
 					# cycle through the rhythm options with the right key
 					if PARTS[self.change_idx] != SOLO: # disable arpeggios on solo edit mode
 						current_bar = self.get_current_bar()
-						# print "CURRENT BAR is {}".format(current_bar)
+						print "CURRENT BAR is {}".format(current_bar)
 						# print "Rhythm temps {}".format(self.rhythm_templates)
 						# print "CHANGE ID {}, change note {}".format(self.change_idx, self.change_note)
 						current_rhythm_template_index = self.rhythm_templates[self.change_idx][current_bar]
+						print "CURRENT RHYTHM TEMP INDEX: {}".format(current_rhythm_template_index)
 						self.rhythm_templates[self.change_idx][current_bar] = (current_rhythm_template_index + 1)%len(TEST_RHYTHM_TEMPLATES)
 						midi = self.note_sequencers[self.change_idx].get_song()[self.change_note][1]
 						particular_chord = self.chord_progression[current_bar]
 						# print "Rhythm temp index is {}".format(self.rhythm_templates[self.change_idx][current_bar])
 						# print "RHythm temp is {}".format(TEST_RHYTHM_TEMPLATES[self.rhythm_templates[self.change_idx][current_bar]])
-
 						rhythm_template = RhythmTemplate(TEST_RHYTHM_TEMPLATES[self.rhythm_templates[self.change_idx][current_bar]])
 						# print rhythm_template, "rhythm_template"
+						print "RHYTHM TEMPLATE ARRY: {}".format(self.rhythm_templates)
 						measure = rhythm_template.create_bar(particular_chord, self.key, midi)
+						print "CURRENT BAR: {}, rhythm template measure: {}".format(current_bar, measure)
 
 						self.replace_staff_note_with_rhythm(measure, current_bar)
 
@@ -628,6 +662,7 @@ class MainWidget(BaseWidget):
 				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(False)
 				(self.change_idx, self.change_note, self.changing) = c
 				self.staff_note_parts[self.change_idx][self.change_note].set_highlight(True)
+				self.get_current_bar()
 		else:
 			pass
 	'''
@@ -666,24 +701,17 @@ class MainWidget(BaseWidget):
 
 	def get_current_bar(self):
 		# get the current bar depending on the change_note
-			FULL_TIME = MEASURE_LENGTH * 4
 			time = 0
 			current_song = self.note_sequencers[self.change_idx].get_song()
 			for i in range(len(current_song)):
 				length = current_song[i][0]
-				if i <= self.change_note:
+				if i < self.change_note:
 					time += length
 
 			# percent passed
-			percent_passed = float(time)/FULL_TIME
-			if percent_passed <= .25:
-				return 0
-			elif percent_passed <= .5:
-				return 1
-			elif percent_passed <= .75:
-				return 2
-			else:
-				return 3
+			percent_passed = float(time)/MEASURE_LENGTH
+			print "RETURNING CURRENT BAR AS {}".format(int(percent_passed))
+			return (int(percent_passed))
 
 
 	def replace_staff_note_with_rhythm(self, replacement, current_bar):
@@ -697,12 +725,12 @@ class MainWidget(BaseWidget):
 		top = False
 		if current_bar < 4: # changing the first bars
 			top = True
-
+		print "CURRENT BAR is {}".format(current_bar)
 		for staff_note in self.staff_note_parts[self.change_idx]:
 			self.canvas.remove(staff_note)
-		# print "Song was {}".format(self.note_sequencers[self.change_idx].get_song())
+		print "Song was {}".format(self.note_sequencers[self.change_idx].get_song())
 		self.note_sequencers[self.change_idx].replace_song_at_index(self.change_note, replacement, MEASURE_LENGTH, current_bar)
-		# print "Song now is {}".format(self.note_sequencers[self.change_idx].get_song())
+		print "Song now is {}".format(self.note_sequencers[self.change_idx].get_song())
 		# remove the staff note and insert new staff notes at the right location
 		self.top_note_seqs[self.change_idx] = self.note_sequencers[self.change_idx].get_half_melody(True)
 		self.bottom_note_seqs[self.change_idx] = self.note_sequencers[self.change_idx].get_half_melody(False)
@@ -729,4 +757,9 @@ class MainWidget(BaseWidget):
 		# unhighlight everything?
 		reset_to_default(self.staff_note_parts[self.change_idx])
 
+
+	def modify_volume(self, new_volume):
+		# set volumes for the change_idx part
+		self.part_volumes[self.change_idx] = new_volume
+		self.synth.cc(PART_CHANNELS[self.change_idx], 7, self.part_volumes[self.change_idx])
 run(MainWidget)

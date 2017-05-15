@@ -27,6 +27,9 @@ class NoteSequencer(object):
         self.playing = False
         self.note_cb = note_cb
         self.cb_args = cb_args
+        self.total_time = 0
+        for note in self.notes:
+            self.total_time += note[0]
 
     def start(self):
         if self.playing:
@@ -109,6 +112,11 @@ class NoteSequencer(object):
 
     def replace_song_at_index(self, index, replacement, MEASURE_LENGTH, current_bar):
         current_song = self.notes
+        print "TOTAL TIME is {}".format(self.total_time)
+        total_time = 0
+        for note in self.notes:
+            total_time += note[0]
+        assert(total_time == self.total_time, "TOTAL TIEM NOT SAME")
         # need to replace EVERYTHING in this MEASURE
         # iterate through everything including and until this index - and add up the time.
         # index we want to start at is at beginning of MEASURE
@@ -119,25 +127,31 @@ class NoteSequencer(object):
         # print "BEGIN {}, END time {}".format(time_passed, time_passed_end)
         time_so_far = 0
         change_index = 0
-        change_index_end = 1
-        for i in range(len(current_song)):
+        change_index_end = len(self.notes) # default to end
+        # print "current song is {}".format(current_song)
+        for ind in range(len(current_song)):
+            # print "TIME SO FAR: {}, BAR BEGIN: {}, BAR END: {}, ind: {}".format(time_so_far, time_passed, time_passed_end, ind)
             #print time_so_far, time_passed, time_passed_end
             if time_so_far == time_passed:
-                change_index = i
-            if time_so_far == time_passed_end:
-                change_index_end = i
-            time_so_far += current_song[i][0]
+                change_index = ind
+            elif time_so_far == time_passed_end:
+                change_index_end = ind
+            time_so_far += current_song[ind][0]
         # print "CHANGE INDEX: {}, change_index_end: {}".format(change_index, change_index_end)
         # print "CURRENT SONG BEFORE SLCIING: {}".format(current_song)
         # find the index of the note where the next measure starts
         begin_slice = current_song[0:change_index]
         end_slice = current_song[change_index_end:]
+        # special case for end
+        if change_index_end == len(self.notes): # taking out the last bar
+            end_slice = []
         current_song = []
         for tup in begin_slice:
             current_song.append(tup)
         for tup in end_slice:
             current_song.append(tup)
         # print "BEGIN SLICE: {}, end_slice {}".format(begin_slice, end_slice)
+        # print "Going to add: {}".format(replacement)
         # current_song = current_song[0:change_index].extend(current_song[change_index_end:])
         # print "CURRENT SONG AFTER SLCIING: {}".format(current_song)
         for i in range(change_index, change_index + len(replacement)):
@@ -161,6 +175,7 @@ class NoteSequencer(object):
             if time_passed == half_point:
                 half_index = i
             time_passed += self.notes[i][0]
+        print "BOTTOM_HALF: {}, TOP half: {}".format(self.notes[half_index:], self.notes[:half_index])
         if top:
             return self.notes[:half_index]
         else:
